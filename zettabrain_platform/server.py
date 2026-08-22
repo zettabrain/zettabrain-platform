@@ -29,8 +29,8 @@ async def custom_swagger_ui():
     return get_swagger_ui_html(
         openapi_url="/openapi.json",
         title="ZettaBrain Platform - API Docs",
-        swagger_ui_cdn_url="https://unpkg.com/swagger-ui-dist@5",
-        swagger_favicon_url="",
+        swagger_js_url="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js",
+        swagger_css_url="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css",
     )
 
 
@@ -39,7 +39,6 @@ async def custom_redoc():
     return get_redoc_html(
         openapi_url="/openapi.json",
         title="ZettaBrain Platform - API Docs",
-        redoc_js_url="https://unpkg.com/redoc@next/bundles/redoc.standalone.js",
     )
 
 app.add_middleware(
