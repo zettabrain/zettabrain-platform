@@ -13,7 +13,10 @@ from fastapi.staticfiles import StaticFiles
 from .config import CHROMA_DIR, DATA_DIR, SKILLS_DIR
 from .database import init_db
 from .provenance import init_signing_key
-from .routers import auth, chat, generate, ingest, settings, teams
+from .routers import admin, auth, chat, generate, ingest, settings, teams
+from .routers import ldap as ldap_router
+from .routers import model_requests as model_requests_router
+from .routers import notifications as notifications_router
 from .security.rate_limiter import RateLimitMiddleware, SecurityHeadersMiddleware
 
 logging.basicConfig(
@@ -66,6 +69,10 @@ app.include_router(chat.router)
 app.include_router(ingest.router)
 app.include_router(generate.router)
 app.include_router(settings.router)
+app.include_router(admin.router)
+app.include_router(ldap_router.router)
+app.include_router(model_requests_router.router)
+app.include_router(notifications_router.router)
 
 # Static files
 _STATIC = Path(__file__).parent / "static"
@@ -78,7 +85,12 @@ def index():
     index_file = _STATIC / "index.html"
     if index_file.exists():
         return FileResponse(str(index_file))
-    return {"service": "zettabrain-platform", "version": "0.1.0", "docs": "/api/docs"}
+    return {"service": "zettabrain-platform", "version": "0.3.0", "docs": "/api/docs"}
+
+
+@app.get("/admin", include_in_schema=False)
+def admin_portal():
+    return FileResponse(str(_STATIC / "index.html"))
 
 
 @app.get("/api/status")

@@ -1,208 +1,990 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ZettaBrain Platform</title>
-    <link rel="stylesheet" href="/static/css/app.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZettaBrain Platform</title>
+<link rel="stylesheet" href="/static/css/app.css">
 </head>
 <body>
-    <!-- Login Screen -->
-    <div id="login-screen" class="screen active">
-        <div class="login-container">
-            <div class="login-logo">
-                <h1>ZettaBrain</h1>
-                <p>Unified AI Platform</p>
-            </div>
-            <form id="login-form" autocomplete="on">
-                <div class="form-group">
-                    <label for="login-username">Username</label>
-                    <input type="text" id="login-username" name="username" required autocomplete="username">
-                </div>
-                <div class="form-group">
-                    <label for="login-password">Password</label>
-                    <input type="password" id="login-password" name="password" required autocomplete="current-password">
-                </div>
-                <button type="submit" class="btn btn-primary btn-full">Sign In</button>
-                <p id="login-error" class="error-text"></p>
-            </form>
+
+<!-- ═══ AUTH VIEW ═══ -->
+<div id="auth-view">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="14" stroke="#818cf8" stroke-width="2"/><path d="M10 16l4 4 8-8" stroke="#818cf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>ZettaBrain</span>
+    </div>
+    <h2>Sign In</h2>
+    <div class="field"><label>Username</label><input id="auth-user" type="text" autocomplete="username"></div>
+    <div class="field"><label>Password</label><input id="auth-pass" type="password" autocomplete="current-password"></div>
+    <button class="btn btn-primary btn-full" onclick="doLogin()">Sign In</button>
+    <div id="auth-err" class="error-msg"></div>
+  </div>
+</div>
+
+<!-- ═══ CHANGE PASSWORD VIEW ═══ -->
+<div id="change-pw-view" class="hidden">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="14" stroke="#818cf8" stroke-width="2"/><path d="M10 16l4 4 8-8" stroke="#818cf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>ZettaBrain</span>
+    </div>
+    <h2>Change Password</h2>
+    <p style="font-size:0.85rem;color:var(--muted);margin-bottom:16px;">You must set a new password before continuing.</p>
+    <div class="field"><label>New Password (min 8 chars)</label><input id="new-pw" type="password" minlength="8"></div>
+    <div class="field"><label>Confirm Password</label><input id="confirm-pw" type="password" minlength="8"></div>
+    <button class="btn btn-primary btn-full" onclick="doChangePw()">Set Password</button>
+    <div id="pw-err" class="error-msg"></div>
+  </div>
+</div>
+
+<!-- ═══ APP VIEW ═══ -->
+<div id="app-view" class="hidden">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="14" stroke="#818cf8" stroke-width="2"/><path d="M10 16l4 4 8-8" stroke="#818cf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>ZettaBrain</span>
+    </div>
+
+    <div class="sidebar-section">Teams</div>
+    <div class="sidebar-nav" id="team-list"></div>
+
+    <!-- Model Request (manager only) -->
+    <div id="model-request-section" class="hidden" style="padding:10px 12px;border-top:1px solid var(--border);">
+      <div class="sidebar-section" style="padding:0 0 6px;">Request Model</div>
+      <div class="field" style="margin-bottom:8px;"><label>LLM Provider</label>
+        <select id="sidebar-llm-provider" style="font-size:0.82rem;padding:6px 10px;" onchange="updateLlmModelDropdown()">
+          <option value="ollama">Ollama</option><option value="openai">OpenAI</option><option value="claude">Claude</option>
+          <option value="groq">Groq</option><option value="together">Together</option><option value="cerebras">Cerebras</option>
+        </select>
+      </div>
+      <div class="field" style="margin-bottom:8px;"><label>LLM Model</label>
+        <select id="sidebar-llm-model-select" style="font-size:0.82rem;padding:6px 10px;" onchange="toggleCustomLlmModel()">
+          <option value="custom">Custom...</option>
+        </select>
+        <input id="sidebar-llm-model-custom" type="text" placeholder="model name" style="font-size:0.82rem;padding:6px 10px;margin-top:4px;">
+      </div>
+      <div class="field" style="margin-bottom:8px;"><label>Embed Provider (optional)</label>
+        <select id="sidebar-embed-provider" style="font-size:0.82rem;padding:6px 10px;">
+          <option value="">— keep current —</option><option value="ollama">Ollama</option><option value="openai">OpenAI</option>
+        </select>
+      </div>
+      <div class="field" style="margin-bottom:8px;"><label>Embed Model</label>
+        <input id="sidebar-embed-model-custom" type="text" placeholder="e.g. nomic-embed-text" style="font-size:0.82rem;padding:6px 10px;">
+      </div>
+      <div class="field" style="margin-bottom:8px;"><label>Justification (min 20 chars)</label>
+        <textarea id="sidebar-justification" rows="2" style="font-size:0.82rem;padding:6px 10px;"></textarea>
+      </div>
+      <button class="btn btn-sm btn-primary btn-full" onclick="submitModelRequest()">Submit Request</button>
+      <div id="sidebar-model-msg" style="font-size:0.78rem;margin-top:6px;min-height:16px;"></div>
+    </div>
+
+    <!-- Admin nav -->
+    <div id="admin-nav-section" class="hidden" style="border-top:1px solid var(--border);padding:8px;">
+      <div class="sidebar-section" style="padding:4px 4px;">Admin</div>
+      <button class="nav-item" onclick="showAdmin('dashboard')">Dashboard</button>
+      <button class="nav-item" onclick="showAdmin('config')">System Config</button>
+      <button class="nav-item" onclick="showAdmin('users')">Users & LDAP</button>
+      <button class="nav-item" onclick="showAdmin('teams-admin')">Teams & Storage</button>
+      <button class="nav-item" onclick="showAdmin('model-requests')">Model Requests <span id="model-req-badge" class="nav-badge hidden">0</span></button>
+      <button class="nav-item" onclick="showAdmin('audit')">Audit Log</button>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="user-pill">
+        <div class="user-avatar" id="user-avatar">A</div>
+        <div style="flex:1;min-width:0;">
+          <div class="user-name" id="user-name">admin</div>
+          <div class="user-role" id="user-role-display">Admin</div>
         </div>
+        <button class="btn btn-xs btn-ghost" onclick="doLogout()" title="Sign out">Exit</button>
+      </div>
     </div>
+  </aside>
 
-    <!-- Change Password Screen -->
-    <div id="change-pw-screen" class="screen">
-        <div class="login-container">
-            <div class="login-logo">
-                <h1>Change Password</h1>
-                <p>You must set a new password before continuing.</p>
-            </div>
-            <form id="change-pw-form">
-                <div class="form-group">
-                    <label for="new-password">New Password (min 8 characters)</label>
-                    <input type="password" id="new-password" required minlength="8" autocomplete="new-password">
-                </div>
-                <div class="form-group">
-                    <label for="confirm-password">Confirm Password</label>
-                    <input type="password" id="confirm-password" required minlength="8" autocomplete="new-password">
-                </div>
-                <button type="submit" class="btn btn-primary btn-full">Set Password</button>
-                <p id="change-pw-error" class="error-text"></p>
-            </form>
+  <!-- Main Content -->
+  <div class="main">
+    <!-- Chat Portal -->
+    <div id="chat-portal">
+      <div class="team-info-bar">
+        <span class="team-name" id="active-team-name">Select a team</span>
+        <span class="docs-path" id="active-team-docs"></span>
+        <span class="chunks-count" id="active-team-chunks"></span>
+        <button class="btn btn-xs btn-ghost" id="btn-ingest" onclick="triggerIngest()" style="display:none;">Re-ingest</button>
+        <button class="btn btn-xs btn-ghost" id="btn-upload" onclick="el('upload-input').click()" style="display:none;">Upload</button>
+        <input type="file" id="upload-input" multiple accept=".pdf,.docx,.txt,.md,.doc" style="display:none;" onchange="handleUpload(this.files)">
+        <button class="btn btn-xs btn-primary" id="btn-generate" onclick="showPortal('generate')" style="display:none;">Generate</button>
+      </div>
+      <div class="messages" id="messages">
+        <div style="text-align:center;color:var(--muted);padding:60px 20px;">
+          <p>Select a team from the sidebar to start chatting with your documents.</p>
         </div>
+      </div>
+      <div class="chat-input-area">
+        <textarea id="chat-input" rows="1" placeholder="Ask a question about your documents..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
+        <button class="btn btn-primary" onclick="sendChat()">Send</button>
+      </div>
     </div>
 
-    <!-- Main Application -->
-    <div id="app-screen" class="screen">
-        <!-- Top Bar -->
-        <header class="topbar">
-            <div class="topbar-left">
-                <h2 class="brand">ZettaBrain</h2>
-            </div>
-            <nav class="topbar-tabs" id="main-tabs">
-                <button class="tab active" data-tab="chat">Chat</button>
-                <button class="tab" data-tab="generate">Generate</button>
-                <button class="tab" data-tab="documents">Documents</button>
-                <button class="tab" data-tab="skills">Skills</button>
-                <button class="tab" data-tab="admin" id="admin-tab">Admin</button>
-            </nav>
-            <div class="topbar-right">
-                <span id="user-display" class="user-badge"></span>
-                <button id="logout-btn" class="btn btn-sm btn-ghost">Logout</button>
-            </div>
-        </header>
-
-        <!-- Tab Panels -->
-        <main class="main-content">
-            <!-- Chat Tab -->
-            <section id="panel-chat" class="panel active">
-                <div class="panel-header">
-                    <h3>Chat with Documents</h3>
-                    <select id="chat-team-select" class="select"></select>
-                </div>
-                <div class="chat-container">
-                    <div id="chat-messages" class="chat-messages">
-                        <div class="chat-empty">
-                            <p>Select a team and ask a question about your documents.</p>
-                        </div>
-                    </div>
-                    <form id="chat-form" class="chat-input-area">
-                        <input type="text" id="chat-input" placeholder="Ask a question..." autocomplete="off">
-                        <button type="submit" class="btn btn-primary">Send</button>
-                    </form>
-                </div>
-            </section>
-
-            <!-- Generate Tab -->
-            <section id="panel-generate" class="panel">
-                <div class="panel-header">
-                    <h3>Generate Document</h3>
-                    <select id="gen-team-select" class="select"></select>
-                </div>
-                <div class="generate-container">
-                    <div class="gen-form-area">
-                        <div class="form-group">
-                            <label>Skill</label>
-                            <select id="gen-skill-select" class="select"></select>
-                        </div>
-                        <div id="gen-skill-info" class="skill-info"></div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>Customer Name</label>
-                                <input type="text" id="gen-customer-name">
-                            </div>
-                            <div class="form-group">
-                                <label>Customer Email</label>
-                                <input type="email" id="gen-customer-email">
-                            </div>
-                            <div class="form-group">
-                                <label>Customer Phone</label>
-                                <input type="tel" id="gen-customer-phone">
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label>Input / Instructions</label>
-                            <textarea id="gen-input" rows="6" placeholder="Describe what you need generated..."></textarea>
-                        </div>
-                        <button id="gen-submit" class="btn btn-primary">Generate</button>
-                    </div>
-                    <div id="gen-output" class="gen-output">
-                        <div class="gen-output-placeholder">Generated content will appear here.</div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Documents Tab -->
-            <section id="panel-documents" class="panel">
-                <div class="panel-header">
-                    <h3>Generated Documents</h3>
-                    <select id="docs-team-filter" class="select">
-                        <option value="">All Teams</option>
-                    </select>
-                </div>
-                <div id="docs-list" class="docs-list">
-                    <p class="empty-state">No documents generated yet.</p>
-                </div>
-                <!-- Document detail modal -->
-                <div id="doc-modal" class="modal hidden">
-                    <div class="modal-backdrop"></div>
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h3 id="doc-modal-title"></h3>
-                            <button class="modal-close">&times;</button>
-                        </div>
-                        <div id="doc-modal-body" class="modal-body"></div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Skills Tab -->
-            <section id="panel-skills" class="panel">
-                <div class="panel-header">
-                    <h3>Available Skills</h3>
-                </div>
-                <div id="skills-grid" class="skills-grid">
-                    <p class="empty-state">No skills configured yet.</p>
-                </div>
-            </section>
-
-            <!-- Admin Tab -->
-            <section id="panel-admin" class="panel">
-                <div class="panel-header">
-                    <h3>Administration</h3>
-                </div>
-                <div class="admin-container">
-                    <div class="admin-section">
-                        <h4>LLM Provider</h4>
-                        <div id="admin-provider-form" class="admin-form"></div>
-                    </div>
-                    <div class="admin-section">
-                        <h4>System Health</h4>
-                        <div id="admin-health" class="admin-health"></div>
-                    </div>
-                    <div class="admin-section">
-                        <h4>Teams</h4>
-                        <div id="admin-teams"></div>
-                        <form id="admin-create-team" class="inline-form">
-                            <input type="text" id="new-team-name" placeholder="New team name" required>
-                            <input type="text" id="new-team-desc" placeholder="Description">
-                            <button type="submit" class="btn btn-sm btn-primary">Create Team</button>
-                        </form>
-                    </div>
-                    <div class="admin-section">
-                        <h4>Document Ingestion</h4>
-                        <form id="admin-ingest-form" class="inline-form">
-                            <select id="ingest-team-select" class="select"></select>
-                            <input type="file" id="ingest-file" accept=".pdf,.docx,.txt,.md" multiple>
-                            <button type="submit" class="btn btn-sm btn-primary">Ingest</button>
-                        </form>
-                        <p id="ingest-status" class="status-text"></p>
-                    </div>
-                </div>
-            </section>
-        </main>
+    <!-- Generate Portal -->
+    <div id="generate-portal" class="hidden">
+      <div class="team-info-bar">
+        <span class="team-name">Generate Document</span>
+        <button class="btn btn-xs btn-ghost" onclick="showPortal('chat')">Back to Chat</button>
+      </div>
+      <div class="gen-container">
+        <div class="gen-form-area">
+          <div class="field"><label>Skill</label>
+            <select id="gen-skill-select" onchange="showSkillInfo()"></select>
+          </div>
+          <div id="gen-skill-info" style="font-size:0.82rem;color:var(--muted);margin-bottom:12px;"></div>
+          <div class="form-row">
+            <div class="field"><label>Customer Name</label><input id="gen-cust-name" type="text"></div>
+            <div class="field"><label>Email</label><input id="gen-cust-email" type="email"></div>
+            <div class="field"><label>Phone</label><input id="gen-cust-phone" type="tel"></div>
+          </div>
+          <div class="field"><label>Input / Instructions</label><textarea id="gen-input" rows="5" placeholder="Describe what to generate..."></textarea></div>
+          <button class="btn btn-primary" onclick="doGenerate()">Generate</button>
+        </div>
+        <div class="gen-output" id="gen-output">
+          <div class="gen-output-placeholder">Generated content will appear here.</div>
+        </div>
+      </div>
     </div>
 
-    <script src="/static/js/api.js"></script>
-    <script src="/static/js/app.js"></script>
+    <!-- Admin Portal -->
+    <div id="admin-portal" class="hidden">
+      <div id="admin-content" class="admin-content">
+        <h2>Admin Dashboard</h2>
+        <p style="color:var(--muted);">Loading...</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Provenance Modal -->
+<div id="prov-modal" class="hidden">
+  <div class="modal-backdrop" onclick="closeProvenanceModal(event)">
+    <div class="modal-card" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <span class="shield">🛡</span>
+        <h3>ZettaBrain Verified</h3>
+        <button class="btn btn-xs btn-ghost" onclick="closeProvenanceModal()">✕</button>
+      </div>
+      <div class="modal-body" id="prov-modal-body"></div>
+      <div class="modal-footer">
+        <button class="btn btn-sm btn-ghost" onclick="downloadVerificationReport()">Download Report</button>
+        <button class="btn btn-sm btn-primary" onclick="closeProvenanceModal()">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════════════
+const S = {
+  token: null,
+  user: null,
+  teams: [],
+  activeTeam: null,
+  adminTab: null,
+  portal: 'chat',
+  skills: [],
+};
+
+const el = id => document.getElementById(id);
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  API HELPER
+// ═══════════════════════════════════════════════════════════════════
+async function api(method, path, body) {
+  const opts = { method, headers: {} };
+  if (S.token) opts.headers['Authorization'] = `Bearer ${S.token}`;
+  if (body !== undefined) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  const res = await fetch(path, opts);
+  if (res.status === 401) { doLogout(); throw new Error('Session expired'); }
+  if (res.status === 204) return null;
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+  return data;
+}
+
+function toast(msg, type = 'success') {
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 3500);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  AUTH
+// ═══════════════════════════════════════════════════════════════════
+async function doLogin() {
+  const username = el('auth-user').value.trim();
+  const password = el('auth-pass').value;
+  el('auth-err').textContent = '';
+  try {
+    const body = new URLSearchParams({ username, password });
+    const res = await fetch('/api/auth/token', { method: 'POST', body });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || 'Login failed');
+
+    S.token = data.access_token;
+    sessionStorage.setItem('zbp_token', S.token);
+
+    if (data.must_change_password) {
+      el('auth-view').classList.add('hidden');
+      el('change-pw-view').classList.remove('hidden');
+      return;
+    }
+    await initApp();
+  } catch (e) {
+    el('auth-err').textContent = e.message;
+  }
+}
+
+async function doChangePw() {
+  const pw1 = el('new-pw').value;
+  const pw2 = el('confirm-pw').value;
+  el('pw-err').textContent = '';
+  if (pw1.length < 8) { el('pw-err').textContent = 'Min 8 characters'; return; }
+  if (pw1 !== pw2) { el('pw-err').textContent = 'Passwords do not match'; return; }
+  try {
+    await api('POST', '/api/auth/change-password', { new_password: pw1 });
+    await initApp();
+  } catch (e) { el('pw-err').textContent = e.message; }
+}
+
+function doLogout() {
+  S.token = null; S.user = null;
+  sessionStorage.removeItem('zbp_token');
+  disconnectSSE();
+  el('auth-view').classList.remove('hidden');
+  el('change-pw-view').classList.add('hidden');
+  el('app-view').classList.add('hidden');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════════════
+async function initApp() {
+  try {
+    S.user = await api('GET', '/api/auth/me');
+  } catch { doLogout(); return; }
+
+  el('auth-view').classList.add('hidden');
+  el('change-pw-view').classList.add('hidden');
+  el('app-view').classList.remove('hidden');
+
+  el('user-name').textContent = S.user.username;
+  el('user-role-display').textContent = S.user.system_role;
+  el('user-avatar').textContent = S.user.username[0].toUpperCase();
+
+  if (S.user.system_role === 'admin') {
+    el('admin-nav-section').classList.remove('hidden');
+    updateModelRequestBadge();
+  }
+
+  await loadTeams();
+  connectSSE();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  TEAMS
+// ═══════════════════════════════════════════════════════════════════
+async function loadTeams() {
+  try {
+    S.teams = await api('GET', '/api/teams/');
+  } catch { S.teams = []; }
+  renderTeamList();
+  if (S.teams.length && !S.activeTeam) selectTeam(S.teams[0]);
+}
+
+function renderTeamList() {
+  const container = el('team-list');
+  container.innerHTML = S.teams.map(t => `
+    <button class="nav-item ${S.activeTeam && S.activeTeam.id === t.id ? 'active' : ''}" onclick="selectTeam(${JSON.stringify(t).replace(/"/g,'&quot;')})">
+      ${escHtml(t.name)}
+    </button>
+  `).join('');
+}
+
+async function selectTeam(team) {
+  S.activeTeam = team;
+  renderTeamList();
+  el('active-team-name').textContent = team.name;
+  el('active-team-docs').textContent = team.docs_folder || '';
+  el('messages').innerHTML = '<div style="text-align:center;color:var(--muted);padding:60px 20px;">Ask a question about this team\'s documents.</div>';
+
+  // Show action buttons for managers/admins
+  const isManagerOrAdmin = S.user.system_role === 'admin';
+  el('btn-ingest').style.display = isManagerOrAdmin ? '' : 'none';
+  el('btn-upload').style.display = isManagerOrAdmin ? '' : 'none';
+  el('btn-generate').style.display = '';
+
+  // Load team stats
+  try {
+    const stats = await api('GET', `/api/teams/${team.id}/stats`);
+    el('active-team-chunks').textContent = stats.vector_docs ? `${stats.vector_docs} chunks` : 'No docs';
+  } catch { el('active-team-chunks').textContent = ''; }
+
+  // Show model request section for managers
+  updateModelRequestSection();
+
+  showPortal('chat');
+}
+
+function updateModelRequestSection() {
+  if (!S.activeTeam) return;
+  // Show for managers or admins
+  el('model-request-section').classList.remove('hidden');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  CHAT
+// ═══════════════════════════════════════════════════════════════════
+async function sendChat() {
+  const input = el('chat-input');
+  const q = input.value.trim();
+  if (!q || !S.activeTeam) return;
+  input.value = '';
+
+  const msgs = el('messages');
+  if (msgs.querySelector('[style*="text-align:center"]')) msgs.innerHTML = '';
+
+  msgs.innerHTML += `<div class="msg user"><div class="msg-bubble">${escHtml(q)}</div></div>`;
+  msgs.innerHTML += `<div class="msg assistant" id="typing"><div class="typing-indicator"><span></span><span></span><span></span></div></div>`;
+  msgs.scrollTop = msgs.scrollHeight;
+
+  try {
+    const r = await api('POST', '/api/chat/', { team_id: S.activeTeam.id, question: q });
+    const typing = el('typing');
+    if (typing) typing.remove();
+
+    const confClass = r.confidence >= 0.7 ? 'badge-high' : r.confidence >= 0.4 ? 'badge-medium' : 'badge-low';
+    const sources = (r.sources || []).map(s => `<span class="source-chip">${escHtml(s)}</span>`).join(' ');
+
+    msgs.innerHTML += `
+      <div class="msg assistant">
+        <div class="msg-bubble">${escHtml(r.answer)}</div>
+        <div class="msg-meta">
+          <span class="badge ${confClass}">${Math.round(r.confidence * 100)}%</span>
+          <span style="font-size:0.72rem;color:var(--muted);">${r.chunks} chunks · ${r.duration_ms}ms</span>
+          ${sources}
+        </div>
+      </div>`;
+    msgs.scrollTop = msgs.scrollHeight;
+  } catch (e) {
+    const typing = el('typing');
+    if (typing) typing.remove();
+    msgs.innerHTML += `<div class="msg assistant"><div class="msg-bubble" style="color:var(--danger);">${escHtml(e.message)}</div></div>`;
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  INGEST / UPLOAD
+// ═══════════════════════════════════════════════════════════════════
+async function triggerIngest() {
+  if (!S.activeTeam) return;
+  try {
+    const r = await api('POST', `/api/ingest/${S.activeTeam.id}`, {});
+    toast(r.output || 'Ingestion complete');
+    selectTeam(S.activeTeam);
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function handleUpload(files) {
+  if (!files.length || !S.activeTeam) return;
+  const formData = new FormData();
+  formData.append('team_id', S.activeTeam.id.toString());
+  for (const f of files) formData.append('files', f);
+
+  try {
+    const res = await fetch('/api/ingest/upload', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${S.token}` },
+      body: formData,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || 'Upload failed');
+    toast(`Ingested ${data.documents_ingested} file(s), ${data.total_chunks} total chunks`);
+    selectTeam(S.activeTeam);
+  } catch (e) { toast(e.message, 'error'); }
+  el('upload-input').value = '';
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  GENERATE (SKILLS)
+// ═══════════════════════════════════════════════════════════════════
+async function loadSkills() {
+  try {
+    S.skills = await api('GET', '/api/generate/skills');
+    const sel = el('gen-skill-select');
+    sel.innerHTML = S.skills.map(s => `<option value="${escHtml(s.file)}">${escHtml(s.display_name)}</option>`).join('');
+    showSkillInfo();
+  } catch { S.skills = []; }
+}
+
+function showSkillInfo() {
+  const file = el('gen-skill-select').value;
+  const skill = S.skills.find(s => s.file === file);
+  el('gen-skill-info').textContent = skill ? skill.description || '' : '';
+}
+
+async function doGenerate() {
+  if (!S.activeTeam) { toast('Select a team first', 'error'); return; }
+  const skill = el('gen-skill-select').value;
+  const input = el('gen-input').value.trim();
+  if (!input) { toast('Input is required', 'error'); return; }
+
+  el('gen-output').innerHTML = '<div class="gen-output-placeholder">Generating...</div>';
+
+  try {
+    const r = await api('POST', '/api/generate/', {
+      skill_file: skill,
+      input_text: input,
+      team_id: S.activeTeam.id,
+      customer_name: el('gen-cust-name').value.trim(),
+      customer_email: el('gen-cust-email').value.trim(),
+      customer_phone: el('gen-cust-phone').value.trim(),
+    });
+    el('gen-output').innerHTML = `<div class="gen-output-content">${escHtml(r.content)}</div>
+      <div style="margin-top:16px;font-size:0.78rem;color:var(--muted);">
+        Skill: ${escHtml(r.skill_name)} · ${r.generation_time_ms}ms
+        ${r.citations && r.citations.length ? '<br>Sources: ' + r.citations.map(c => `<span class="source-chip">${escHtml(c)}</span>`).join(' ') : ''}
+      </div>`;
+  } catch (e) {
+    el('gen-output').innerHTML = `<div class="gen-output-placeholder" style="color:var(--danger);">${escHtml(e.message)}</div>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  PORTAL SWITCHING
+// ═══════════════════════════════════════════════════════════════════
+function showPortal(portal) {
+  S.portal = portal;
+  el('chat-portal').classList.toggle('hidden', portal !== 'chat');
+  el('generate-portal').classList.toggle('hidden', portal !== 'generate');
+  el('admin-portal').classList.toggle('hidden', portal !== 'admin');
+  if (portal === 'generate' && !S.skills.length) loadSkills();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  ADMIN
+// ═══════════════════════════════════════════════════════════════════
+function showAdmin(tab) {
+  S.adminTab = tab;
+  showPortal('admin');
+  if (tab === 'dashboard') loadDashboard();
+  else if (tab === 'config') loadConfig();
+  else if (tab === 'users') loadUsers();
+  else if (tab === 'teams-admin') loadTeamsAdmin();
+  else if (tab === 'model-requests') loadModelRequests();
+  else if (tab === 'audit') loadAudit();
+}
+
+async function loadDashboard() {
+  el('admin-content').innerHTML = '<h2>Dashboard</h2><p style="color:var(--muted);">Loading...</p>';
+  try {
+    const [stats, health] = await Promise.all([
+      api('GET', '/api/admin/stats'),
+      api('GET', '/api/admin/health'),
+    ]);
+
+    const ollamaStatus = health.ollama?.ok ? '<span class="dot dot-green"></span>Connected' : '<span class="dot dot-red"></span>Offline';
+    const openaiStatus = health.openai?.ok ? '<span class="dot dot-green"></span>Connected' : '<span class="dot dot-red"></span>Not configured';
+    const claudeStatus = health.claude?.ok ? '<span class="dot dot-green"></span>Connected' : '<span class="dot dot-red"></span>Not configured';
+
+    let cloudHtml = '';
+    if (health.cloud_providers) {
+      cloudHtml = Object.entries(health.cloud_providers).map(([name, info]) =>
+        `<div class="info-row"><span class="label">${name}</span><span>${info.ok ? '<span class="dot dot-green"></span>OK' : info.key_set ? '<span class="dot dot-red"></span>Error' : '<span class="dot dot-red"></span>No key'}</span></div>`
+      ).join('');
+    }
+
+    const teamsHtml = (health.teams || []).map(t =>
+      `<tr><td>${escHtml(t.team_name)}</td><td>${escHtml(t.team_slug)}</td><td>${t.vector_docs}</td></tr>`
+    ).join('');
+
+    el('admin-content').innerHTML = `
+      <h2>Dashboard</h2>
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-label">Users</div><div class="stat-value">${stats.users}</div></div>
+        <div class="stat-card"><div class="stat-label">Teams</div><div class="stat-value">${stats.teams}</div></div>
+        <div class="stat-card"><div class="stat-label">Total Queries</div><div class="stat-value">${stats.total_queries}</div></div>
+        <div class="stat-card"><div class="stat-label">Avg Confidence</div><div class="stat-value">${Math.round((stats.avg_confidence || 0) * 100)}%</div></div>
+      </div>
+
+      <div class="info-card">
+        <h3>Provider Status</h3>
+        <div class="info-row"><span class="label">Ollama</span><span>${ollamaStatus}</span></div>
+        <div class="info-row"><span class="label">OpenAI</span><span>${openaiStatus}</span></div>
+        <div class="info-row"><span class="label">Claude</span><span>${claudeStatus}</span></div>
+        ${cloudHtml}
+      </div>
+
+      <div class="info-card">
+        <h3>Team Vector Stores</h3>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>Team</th><th>Slug</th><th>Chunks</th></tr></thead>
+          <tbody>${teamsHtml || '<tr><td colspan="3" style="color:var(--muted);">No teams</td></tr>'}</tbody>
+        </table></div>
+      </div>
+    `;
+  } catch (e) { el('admin-content').innerHTML = `<h2>Dashboard</h2><div class="error-msg">${e.message}</div>`; }
+}
+
+async function loadConfig() {
+  el('admin-content').innerHTML = '<h2>System Config</h2><p style="color:var(--muted);">Loading...</p>';
+  try {
+    const settings = await api('GET', '/api/admin/settings');
+    const keys = Object.keys(settings);
+    const fields = keys.map(k => {
+      const isSensitive = k.includes('api_key') || k.includes('password');
+      const type = isSensitive ? 'password' : 'text';
+      return `<div class="field"><label>${escHtml(k)}</label><input id="cfg-${k}" type="${type}" value="${escHtml(settings[k])}"></div>`;
+    }).join('');
+
+    el('admin-content').innerHTML = `
+      <h2>System Config</h2>
+      <div class="form-section">${fields}
+        <button class="btn btn-primary" onclick="saveConfig()">Save Settings</button>
+        <span id="cfg-msg" style="margin-left:12px;font-size:0.82rem;"></span>
+      </div>
+    `;
+  } catch (e) { el('admin-content').innerHTML = `<h2>System Config</h2><div class="error-msg">${e.message}</div>`; }
+}
+
+async function saveConfig() {
+  const inputs = el('admin-content').querySelectorAll('[id^="cfg-"]');
+  const body = {};
+  inputs.forEach(inp => {
+    if (inp.id === 'cfg-msg') return;
+    const key = inp.id.replace('cfg-', '');
+    body[key] = inp.value;
+  });
+  try {
+    await api('PUT', '/api/admin/settings', body);
+    el('cfg-msg').style.color = 'var(--success)';
+    el('cfg-msg').textContent = 'Saved!';
+    setTimeout(() => { if (el('cfg-msg')) el('cfg-msg').textContent = ''; }, 2000);
+  } catch (e) {
+    el('cfg-msg').style.color = 'var(--danger)';
+    el('cfg-msg').textContent = e.message;
+  }
+}
+
+async function loadUsers() {
+  el('admin-content').innerHTML = '<h2>Users & LDAP</h2><p style="color:var(--muted);">Loading...</p>';
+  try {
+    const users = await api('GET', '/api/admin/users');
+    const rows = users.map(u => `
+      <tr>
+        <td>${escHtml(u.username)}</td>
+        <td>${escHtml(u.email)}</td>
+        <td><span class="badge badge-info">${u.system_role}</span></td>
+        <td>${u.is_active ? '<span class="dot dot-green"></span>Active' : '<span class="dot dot-red"></span>Disabled'}</td>
+        <td class="actions">
+          <button class="btn btn-xs ${u.is_active ? 'btn-warn' : 'btn-success'}"
+                  onclick="toggleUser(${u.id}, ${!u.is_active})">${u.is_active ? 'Disable' : 'Enable'}</button>
+          <button class="btn btn-xs btn-danger" onclick="deleteUser(${u.id}, '${escHtml(u.username)}')">Delete</button>
+        </td>
+      </tr>`).join('');
+
+    el('admin-content').innerHTML = `
+      <h2>Users & LDAP</h2>
+      <div class="form-section">
+        <h3>Create User</h3>
+        <div class="form-row">
+          <div class="field"><label>Username</label><input id="new-user-name" type="text"></div>
+          <div class="field"><label>Email</label><input id="new-user-email" type="email"></div>
+          <div class="field"><label>Password</label><input id="new-user-pw" type="password"></div>
+        </div>
+        <button class="btn btn-sm btn-primary" onclick="createUser()">Create User</button>
+        <span id="user-msg" style="margin-left:12px;font-size:0.82rem;"></span>
+      </div>
+      <div class="info-card">
+        <h3>All Users (${users.length})</h3>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>
+      </div>
+    `;
+  } catch (e) { el('admin-content').innerHTML = `<h2>Users</h2><div class="error-msg">${e.message}</div>`; }
+}
+
+async function createUser() {
+  const username = el('new-user-name').value.trim();
+  const email = el('new-user-email').value.trim();
+  const password = el('new-user-pw').value;
+  try {
+    await api('POST', '/api/admin/users', { username, email, password });
+    toast('User created');
+    loadUsers();
+  } catch (e) {
+    el('user-msg').style.color = 'var(--danger)';
+    el('user-msg').textContent = e.message;
+  }
+}
+
+async function toggleUser(userId, active) {
+  try { await api('PATCH', `/api/admin/users/${userId}/active?active=${active}`); loadUsers(); }
+  catch (e) { toast(e.message, 'error'); }
+}
+
+async function deleteUser(userId, username) {
+  if (!confirm(`Delete user "${username}"? This cannot be undone.`)) return;
+  try { await api('DELETE', `/api/admin/users/${userId}`); toast('User deleted'); loadUsers(); }
+  catch (e) { toast(e.message, 'error'); }
+}
+
+async function loadTeamsAdmin() {
+  el('admin-content').innerHTML = '<h2>Teams & Storage</h2><p style="color:var(--muted);">Loading...</p>';
+  try {
+    const teams = await api('GET', '/api/teams/');
+    const cards = teams.map(t => `
+      <div class="team-card">
+        <div class="team-card-header"><h4>${escHtml(t.name)}</h4><span style="font-size:0.75rem;color:var(--muted);">${escHtml(t.slug)}</span></div>
+        <div class="team-card-body">
+          <p style="font-size:0.82rem;color:var(--muted);margin-bottom:8px;">Docs: ${escHtml(t.docs_folder || 'Not set')}</p>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="btn btn-xs btn-ghost" onclick="adminIngest(${t.id})">Ingest</button>
+            <button class="btn btn-xs btn-danger" onclick="clearVectorStore(${t.id}, '${escHtml(t.name)}')">Clear Vector Store</button>
+            <button class="btn btn-xs btn-danger" onclick="deleteTeamAdmin(${t.id}, '${escHtml(t.name)}')">Delete Team</button>
+          </div>
+          <div id="team-members-${t.id}" style="margin-top:12px;"></div>
+        </div>
+      </div>
+    `).join('');
+
+    el('admin-content').innerHTML = `
+      <h2>Teams & Storage</h2>
+      <div class="form-section">
+        <h3>Create Team</h3>
+        <div class="form-row">
+          <div class="field"><label>Name</label><input id="new-team-name" type="text"></div>
+          <div class="field"><label>Docs Folder</label><input id="new-team-folder" type="text" placeholder="/path/to/docs"></div>
+        </div>
+        <button class="btn btn-sm btn-primary" onclick="createTeamAdmin()">Create Team</button>
+      </div>
+      ${cards}
+    `;
+
+    for (const t of teams) loadTeamMembers(t.id);
+  } catch (e) { el('admin-content').innerHTML = `<h2>Teams</h2><div class="error-msg">${e.message}</div>`; }
+}
+
+async function loadTeamMembers(teamId) {
+  try {
+    const members = await api('GET', `/api/teams/${teamId}/members`);
+    const container = el(`team-members-${teamId}`);
+    if (!container) return;
+    container.innerHTML = `<div style="font-size:0.78rem;color:var(--muted);margin-bottom:6px;">Members (${members.length})</div>` +
+      members.map(m => `
+        <div class="member-row">
+          <span class="member-name">${escHtml(m.username)}</span>
+          <span class="role-badge role-${m.team_role}">${m.team_role}</span>
+          <button class="btn btn-xs btn-ghost" onclick="removeMember(${teamId}, ${m.user_id})">Remove</button>
+        </div>`).join('');
+  } catch {}
+}
+
+async function createTeamAdmin() {
+  const name = el('new-team-name').value.trim();
+  const folder = el('new-team-folder').value.trim();
+  if (!name) { toast('Team name required', 'error'); return; }
+  try {
+    await api('POST', '/api/teams/', { name, docs_folder: folder || null });
+    toast('Team created');
+    loadTeamsAdmin();
+    loadTeams();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function adminIngest(teamId) {
+  try {
+    const r = await api('POST', `/api/ingest/${teamId}`, {});
+    toast(r.output || 'Done');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function clearVectorStore(teamId, name) {
+  if (!confirm(`Clear all vectors for "${name}"? Documents must be re-ingested.`)) return;
+  try { await api('DELETE', `/api/admin/vectorstore/${teamId}`); toast('Vector store cleared'); }
+  catch (e) { toast(e.message, 'error'); }
+}
+
+async function deleteTeamAdmin(teamId, name) {
+  if (!confirm(`Delete team "${name}"? This removes all members and cannot be undone.`)) return;
+  try { await api('DELETE', `/api/teams/${teamId}`); toast('Team deleted'); loadTeamsAdmin(); loadTeams(); }
+  catch (e) { toast(e.message, 'error'); }
+}
+
+async function removeMember(teamId, userId) {
+  try { await api('DELETE', `/api/teams/${teamId}/members/${userId}`); loadTeamMembers(teamId); }
+  catch (e) { toast(e.message, 'error'); }
+}
+
+// ── MODEL REQUESTS (Admin) ─────────────────────────────────────
+async function loadModelRequests() {
+  el('admin-content').innerHTML = '<h2>Model Requests</h2><p style="color:var(--muted);">Loading...</p>';
+  try {
+    const requests = await api('GET', '/api/admin/model-requests');
+    const pending = requests.filter(r => r.status === 'pending');
+    const others = requests.filter(r => r.status !== 'pending');
+
+    const renderRow = r => `
+      <tr>
+        <td>${escHtml(r.team_name)}</td><td>${escHtml(r.requester_username)}</td>
+        <td style="font-size:0.78rem;">${new Date(r.created_at+'Z').toLocaleString()}</td>
+        <td><span class="model-tag">${escHtml(r.llm_provider||'')}: ${escHtml(r.llm_model||'')}</span></td>
+        <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;" title="${escHtml(r.justification)}">${escHtml((r.justification||'').slice(0,50))}</td>
+        <td><span class="badge ${r.status==='approved'?'badge-high':r.status==='rejected'?'badge-low':'badge-medium'}">${r.status.toUpperCase()}</span></td>
+        <td class="actions">
+          ${r.status === 'pending' ? `
+            <button class="btn btn-xs btn-success" onclick="approveRequest(${r.id})">Approve</button>
+            <button class="btn btn-xs btn-danger" onclick="rejectRequest(${r.id})">Reject</button>
+          ` : ''}
+        </td>
+      </tr>`;
+
+    el('admin-content').innerHTML = `
+      <h2>Model Requests</h2>
+      <div class="info-card"><h3>Pending (${pending.length})</h3>
+        <div class="tbl-wrap"><table><thead><tr><th>Team</th><th>By</th><th>Date</th><th>Model</th><th>Justification</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>${pending.map(renderRow).join('') || '<tr><td colspan="7" style="color:var(--muted);">None</td></tr>'}</tbody></table></div>
+      </div>
+      <div class="info-card"><h3>History (${others.length})</h3>
+        <div class="tbl-wrap"><table><thead><tr><th>Team</th><th>By</th><th>Date</th><th>Model</th><th>Justification</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>${others.map(renderRow).join('') || '<tr><td colspan="7" style="color:var(--muted);">None</td></tr>'}</tbody></table></div>
+      </div>
+    `;
+  } catch (e) { el('admin-content').innerHTML = `<h2>Model Requests</h2><div class="error-msg">${e.message}</div>`; }
+}
+
+async function approveRequest(id) {
+  if (!confirm('Approve this model request?')) return;
+  try { await api('POST', `/api/admin/model-requests/${id}/approve`); toast('Approved'); loadModelRequests(); updateModelRequestBadge(); }
+  catch (e) { toast(e.message, 'error'); }
+}
+
+async function rejectRequest(id) {
+  const reason = prompt('Rejection reason (min 10 chars):');
+  if (!reason || reason.trim().length < 10) { toast('Reason must be at least 10 characters', 'error'); return; }
+  try { await api('POST', `/api/admin/model-requests/${id}/reject`, { reason: reason.trim() }); toast('Rejected'); loadModelRequests(); updateModelRequestBadge(); }
+  catch (e) { toast(e.message, 'error'); }
+}
+
+async function updateModelRequestBadge() {
+  if (S.user?.system_role !== 'admin') return;
+  try {
+    const requests = await api('GET', '/api/admin/model-requests?status=pending');
+    const badge = el('model-req-badge');
+    if (badge) {
+      if (requests.length > 0) { badge.textContent = requests.length; badge.classList.remove('hidden'); }
+      else badge.classList.add('hidden');
+    }
+  } catch {}
+}
+
+// ── AUDIT LOG ──────────────────────────────────────────────────
+let _auditLogs = [];
+
+async function loadAudit() {
+  el('admin-content').innerHTML = `
+    <h2>Audit Log</h2>
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+      <button class="btn btn-sm btn-primary" onclick="refreshAudit('1d')">24h</button>
+      <button class="btn btn-sm btn-ghost" onclick="refreshAudit('7d')">7 days</button>
+      <button class="btn btn-sm btn-ghost" onclick="refreshAudit('30d')">30 days</button>
+      <button class="btn btn-sm btn-ghost" onclick="refreshAudit('all')">All</button>
+      <button class="btn btn-sm btn-ghost" onclick="exportAuditCsv()" style="margin-left:auto;">Export CSV</button>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Time</th><th>User</th><th>Team</th><th>Action</th><th>Query</th><th>Confidence</th><th>Duration</th><th>Verified</th></tr></thead>
+      <tbody id="audit-tbody"><tr><td colspan="8" style="color:var(--muted);">Loading...</td></tr></tbody>
+    </table></div>
+  `;
+  await refreshAudit('1d');
+}
+
+async function refreshAudit(range) {
+  let url = '/api/admin/audit?limit=500';
+  if (range !== 'all') {
+    const ms = { '1d': 86400000, '7d': 604800000, '30d': 2592000000 }[range] || 86400000;
+    url += `&since=${new Date(Date.now() - ms).toISOString()}`;
+  }
+  try {
+    _auditLogs = await api('GET', url);
+    const tbody = el('audit-tbody');
+    if (!_auditLogs.length) { tbody.innerHTML = '<tr><td colspan="8" style="color:var(--muted);">No logs</td></tr>'; return; }
+    tbody.innerHTML = _auditLogs.map(l => `
+      <tr>
+        <td style="white-space:nowrap;font-size:0.78rem;">${new Date(l.timestamp+'Z').toLocaleString()}</td>
+        <td>${escHtml(l.username || '')}</td>
+        <td>${escHtml(l.team_name || '')}</td>
+        <td><span class="badge badge-info">${escHtml(l.action)}</span></td>
+        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(l.query||'')}">${escHtml((l.query||'').slice(0,80))}</td>
+        <td>${l.confidence != null ? Math.round(l.confidence*100)+'%' : ''}</td>
+        <td>${l.duration_ms != null ? l.duration_ms+'ms' : ''}</td>
+        <td>${l.provenance_sig ? `<button class="btn btn-xs btn-ghost" onclick="verifyProvenance(${l.id})">Verify</button>` : ''}</td>
+      </tr>
+    `).join('');
+  } catch (e) { el('audit-tbody').innerHTML = `<tr><td colspan="8" style="color:var(--danger);">${e.message}</td></tr>`; }
+}
+
+function exportAuditCsv() {
+  if (!_auditLogs.length) { toast('No logs to export', 'error'); return; }
+  const cols = ['Timestamp','Username','Team','Action','Query','Confidence','Duration'];
+  const esc = v => `"${String(v ?? '').replace(/"/g,'""')}"`;
+  const rows = _auditLogs.map(l => [
+    new Date(l.timestamp+'Z').toISOString(), l.username||'', l.team_name||'',
+    l.action, l.query||'', l.confidence!=null?Math.round(l.confidence*100):'', l.duration_ms??'',
+  ].map(esc).join(','));
+  const csv = [cols.map(esc).join(','), ...rows].join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `audit_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click(); URL.revokeObjectURL(a.href);
+  toast(`Exported ${_auditLogs.length} records`);
+}
+
+// ── PROVENANCE ─────────────────────────────────────────────────
+let _lastProv = null;
+
+async function verifyProvenance(logId) {
+  try {
+    const r = await api('GET', `/api/admin/audit/${logId}/verify`);
+    _lastProv = r;
+    el('prov-modal-body').innerHTML = `
+      <div class="prov-status ${r.verified ? 'valid' : 'invalid'}">
+        <span style="font-size:1.3rem;">${r.verified ? '✅' : '❌'}</span>
+        <div><div style="font-weight:600;">${r.verified ? 'Signature Valid' : 'Signature Invalid'}</div>
+        <div style="font-size:0.78rem;opacity:.8;">${escHtml(r.reason||'')}</div></div>
+      </div>
+      <div class="prov-section"><h4>Evidence</h4>
+        <div class="prov-grid">
+          <div class="prov-field"><div class="pf-label">Query Hash</div><div class="pf-value">${escHtml((r.query_hash||'').slice(0,32))}...</div></div>
+          <div class="prov-field"><div class="pf-label">Answer Hash</div><div class="pf-value">${escHtml((r.answer_hash||'').slice(0,32))}...</div></div>
+          <div class="prov-field"><div class="pf-label">Chunks</div><div class="pf-value" style="font-size:1.4rem;font-weight:700;">${(r.chunk_hashes||[]).length}</div></div>
+          <div class="prov-field"><div class="pf-label">Model</div><div class="pf-value">${escHtml(r.model||'')}</div></div>
+        </div>
+      </div>
+      <div class="prov-section"><h4>Ed25519 Signature</h4>
+        <div class="copy-row"><div class="copy-val">${escHtml(r.signature_hex||'')}</div></div>
+      </div>
+      <div class="prov-section"><h4>Public Key</h4>
+        <div class="copy-row"><div class="copy-val">${escHtml(r.public_key_hex||'')}</div></div>
+      </div>
+    `;
+    el('prov-modal').classList.remove('hidden');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function closeProvenanceModal(e) {
+  if (e && e.target !== e.currentTarget) return;
+  el('prov-modal').classList.add('hidden');
+}
+
+function downloadVerificationReport() {
+  if (!_lastProv) return;
+  const blob = new Blob([JSON.stringify(_lastProv, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `verification_${_lastProv.log_id}_${new Date().toISOString().slice(0,10)}.json`;
+  a.click(); URL.revokeObjectURL(a.href);
+  toast('Report downloaded');
+}
+
+// ── MODEL REQUEST (Sidebar) ───────────────────────────────────
+function updateLlmModelDropdown() {}
+function toggleCustomLlmModel() {}
+
+async function submitModelRequest() {
+  const msgEl = el('sidebar-model-msg');
+  msgEl.textContent = '';
+  if (!S.activeTeam) { msgEl.style.color='var(--danger)'; msgEl.textContent='No team selected'; return; }
+
+  const llmProvider = el('sidebar-llm-provider').value;
+  const llmModel = el('sidebar-llm-model-custom').value.trim();
+  const embedProvider = el('sidebar-embed-provider').value;
+  const embedModel = el('sidebar-embed-model-custom').value.trim();
+  const justification = el('sidebar-justification').value.trim();
+
+  if (!llmModel) { msgEl.style.color='var(--danger)'; msgEl.textContent='LLM Model is required'; return; }
+  if (justification.length < 20) { msgEl.style.color='var(--danger)'; msgEl.textContent='Justification must be >=20 chars'; return; }
+
+  const body = { llm_provider: llmProvider, llm_model: llmModel, justification };
+  if (embedProvider && embedModel) { body.embed_provider = embedProvider; body.embed_model = embedModel; }
+
+  try {
+    await api('POST', `/api/teams/${S.activeTeam.id}/model-requests`, body);
+    msgEl.style.color = 'var(--success)';
+    msgEl.textContent = 'Request submitted';
+    toast('Model request submitted for admin approval');
+    el('sidebar-llm-model-custom').value = '';
+    el('sidebar-justification').value = '';
+  } catch (e) { msgEl.style.color='var(--danger)'; msgEl.textContent=e.message; }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  SSE NOTIFICATIONS
+// ═══════════════════════════════════════════════════════════════════
+let _sse = null;
+
+function connectSSE() {
+  if (!S.token || !S.user) return;
+  if (_sse) _sse.close();
+  _sse = new EventSource(`/api/notifications/stream?token=${encodeURIComponent(S.token)}`);
+  _sse.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      if (data.type === 'model_request_reviewed' && S.user.system_role !== 'admin') {
+        toast(data.status === 'approved' ? `Model request approved for ${data.team_name}` : `Model request rejected for ${data.team_name}`, data.status === 'approved' ? 'success' : 'error');
+      }
+      if (data.type === 'new_model_request' && S.user.system_role === 'admin') {
+        updateModelRequestBadge();
+        toast(`New model request from ${data.team_name}`);
+        if (S.adminTab === 'model-requests') loadModelRequests();
+      }
+    } catch {}
+  };
+  _sse.onerror = () => { _sse.close(); setTimeout(() => { if (S.token) connectSSE(); }, 5000); };
+}
+
+function disconnectSSE() { if (_sse) { _sse.close(); _sse = null; } }
+
+// ═══════════════════════════════════════════════════════════════════
+//  BOOT
+// ═══════════════════════════════════════════════════════════════════
+(function boot() {
+  const saved = sessionStorage.getItem('zbp_token');
+  if (saved) { S.token = saved; initApp(); }
+
+  // Enter key on auth
+  el('auth-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  el('confirm-pw')?.addEventListener('keydown', e => { if (e.key === 'Enter') doChangePw(); });
+
+  // Escape closes modal
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') el('prov-modal')?.classList.add('hidden'); });
+})();
+</script>
 </body>
 </html>

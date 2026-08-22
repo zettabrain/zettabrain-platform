@@ -249,3 +249,52 @@ class Token(SQLModel):
 
 class ChangePasswordRequest(SQLModel):
     new_password: str
+
+
+class ModelRequestCreate(SQLModel):
+    llm_provider:   Optional[str] = None
+    llm_model:      Optional[str] = None
+    embed_provider: Optional[str] = None
+    embed_model:    Optional[str] = None
+    justification:  str = Field(min_length=20)
+
+
+class ModelRequestRead(SQLModel):
+    id:                 int
+    team_id:            int
+    team_name:          str
+    requester_id:       int
+    requester_username: str
+    llm_provider:       Optional[str]
+    llm_model:          Optional[str]
+    embed_provider:     Optional[str]
+    embed_model:        Optional[str]
+    justification:      str
+    status:             ModelRequestStatus
+    reviewed_by:        Optional[int]
+    reviewer_username:  Optional[str] = None
+    reviewed_at:        Optional[datetime]
+    rejection_reason:   Optional[str]
+    created_at:         datetime
+
+
+class ModelRequestReject(SQLModel):
+    reason: str = Field(min_length=10)
+
+
+class TeamModelConfig(SQLModel):
+    llm_provider:   Optional[str] = None
+    llm_model:      Optional[str] = None
+    embed_provider: Optional[str] = None
+    embed_model:    Optional[str] = None
+
+
+class TeamModelConfigRead(SQLModel):
+    team_id:         int
+    team_name:       str
+    llm_provider:    str
+    llm_model:       str
+    embed_provider:  str
+    embed_model:     str
+    llm_from_team:   bool
+    embed_from_team: bool

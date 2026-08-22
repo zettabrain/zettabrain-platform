@@ -1,0 +1,471 @@
+"""Admin endpoints — user management, audit, stats, license, vector store ops."""
+
+from __future__ import annotations
+
+import json
+import re
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, HTTPException
+from sqlmodel import func, select
+
+from ..auth import hash_password
+from ..deps import AdminUser, SessionDep
+from ..models import (
+    AuditLog,
+    ModelRequest,
+    ModelRequestRead,
+    ModelRequestReject,
+    ModelRequestStatus,
+    SystemRole,
+    Team,
+    TeamMember,
+    TeamModelConfig,
+    User,
+    UserCreate,
+    UserRead,
+)
+from ..provenance import get_public_key_hex, verify_bundle
+
+_EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+
+router = APIRouter(prefix="/api/admin", tags=["admin"])
+
+
+@router.get("/users", response_model=list[UserRead])
+def list_users(_: AdminUser, session: SessionDep):
+    return session.exec(select(User)).all()
+
+
+@router.post("/users", response_model=UserRead)
+def create_user(body: UserCreate, _: AdminUser, session: SessionDep):
+    username = body.username.strip()
+    email = body.email.strip()
+    password = body.password
+
+    if not username:
+        raise HTTPException(status_code=400, detail="Username is required")
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required")
+    if not _EMAIL_RE.match(email):
+        raise HTTPException(status_code=400, detail="Invalid email address")
+    if len(password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+
+    if session.exec(select(User).where(User.username == username)).first():
+        raise HTTPException(status_code=409, detail="Username already exists")
+    if session.exec(select(User).where(User.email == email)).first():
+        raise HTTPException(status_code=409, detail="Email already in use")
+
+    user = User(
+        username=username,
+        email=email,
+        hashed_pw=hash_password(password),
+    )
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return user
+
+
+@router.delete("/users/{user_id}", status_code=204)
+def delete_user(user_id: int, current_user: AdminUser, session: SessionDep):
+    if current_user.id == user_id:
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+
+    user = session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user.system_role == SystemRole.admin:
+        admin_count = session.exec(
+            select(func.count(User.id)).where(User.system_role == SystemRole.admin)
+        ).one()
+        if admin_count <= 1:
+            raise HTTPException(status_code=400, detail="Cannot delete the last admin account")
+
+    for m in session.exec(select(TeamMember).where(TeamMember.user_id == user_id)).all():
+        session.delete(m)
+
+    session.delete(user)
+    session.commit()
+
+
+@router.patch("/users/{user_id}/role", response_model=UserRead)
+def set_user_role(user_id: int, role: SystemRole, _: AdminUser, session: SessionDep):
+    user = session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.system_role = role
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return user
+
+
+@router.patch("/users/{user_id}/active", response_model=UserRead)
+def set_user_active(user_id: int, active: bool, _: AdminUser, session: SessionDep):
+    user = session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.is_active = active
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return user
+
+
+@router.get("/audit")
+def get_audit_log(
+    _: AdminUser,
+    session: SessionDep,
+    limit: int = 1000,
+    team_id: Optional[int] = None,
+    user_id: Optional[int] = None,
+    since: Optional[datetime] = None,
+    until: Optional[datetime] = None,
+) -> List[Dict[str, Any]]:
+    user_map = {u.id: u.username for u in session.exec(select(User)).all()}
+    team_map = {t.id: t.name for t in session.exec(select(Team)).all()}
+
+    q = select(AuditLog).order_by(AuditLog.timestamp.desc()).limit(limit)
+    if team_id is not None:
+        q = q.where(AuditLog.team_id == team_id)
+    if user_id is not None:
+        q = q.where(AuditLog.user_id == user_id)
+    if since is not None:
+        q = q.where(AuditLog.timestamp >= since)
+    if until is not None:
+        q = q.where(AuditLog.timestamp <= until)
+
+    logs = session.exec(q).all()
+    return [
+        {
+            "id": log.id,
+            "timestamp": log.timestamp.isoformat(),
+            "action": log.action,
+            "user_id": log.user_id,
+            "username": user_map.get(log.user_id, f"#{log.user_id}") if log.user_id else None,
+            "team_id": log.team_id,
+            "team_name": team_map.get(log.team_id, f"#{log.team_id}") if log.team_id else None,
+            "query": log.query,
+            "response_preview": log.response_preview,
+            "confidence": log.confidence,
+            "duration_ms": log.duration_ms,
+            "chunks_used": log.chunks_used,
+            "model": log.model,
+            "query_hash": log.query_hash,
+            "answer_hash": log.answer_hash,
+            "provenance_sig": log.provenance_sig,
+        }
+        for log in logs
+    ]
+
+
+@router.get("/keys/public")
+def get_server_public_key(_: AdminUser):
+    return {"public_key_hex": get_public_key_hex(), "algorithm": "Ed25519"}
+
+
+@router.get("/audit/{log_id}/verify")
+def verify_audit_log(log_id: int, _: AdminUser, session: SessionDep):
+    log = session.get(AuditLog, log_id)
+    if not log:
+        raise HTTPException(status_code=404, detail="Log entry not found")
+    if not log.provenance_sig:
+        return {
+            "verified": False,
+            "log_id": log_id,
+            "reason": "No provenance signature stored for this entry",
+            "query_hash": None,
+            "answer_hash": None,
+            "chunk_hashes": [],
+            "signature_hex": None,
+            "public_key_hex": get_public_key_hex(),
+            "canonical_payload": None,
+        }
+
+    chunk_hashes = json.loads(log.chunk_hashes or "[]")
+    ok = verify_bundle(
+        query_hash=log.query_hash or "",
+        chunk_hashes=chunk_hashes,
+        answer_hash=log.answer_hash or "",
+        team_id=log.team_id,
+        model=log.model or "",
+        signature_hex=log.provenance_sig,
+    )
+
+    canonical_obj = {
+        "answer_hash": log.answer_hash or "",
+        "chunk_hashes": sorted(chunk_hashes),
+        "model": log.model or "",
+        "query_hash": log.query_hash or "",
+        "team_id": log.team_id,
+    }
+
+    return {
+        "verified": ok,
+        "log_id": log_id,
+        "reason": "Signature valid — answer bundle is tamper-evident" if ok
+                  else "Signature mismatch — bundle may have been altered",
+        "query_hash": log.query_hash,
+        "answer_hash": log.answer_hash,
+        "chunk_hashes": chunk_hashes,
+        "signature_hex": log.provenance_sig,
+        "public_key_hex": get_public_key_hex(),
+        "model": log.model,
+        "team_id": log.team_id,
+        "timestamp": log.timestamp.isoformat(),
+        "query_preview": log.query,
+        "canonical_payload": json.dumps(canonical_obj, sort_keys=True, separators=(",", ":")),
+    }
+
+
+@router.get("/stats")
+def get_stats(_: AdminUser, session: SessionDep):
+    total_users = session.exec(select(func.count(User.id))).one()
+    total_teams = session.exec(select(func.count(Team.id))).one()
+    total_chats = session.exec(
+        select(func.count(AuditLog.id)).where(AuditLog.action == "chat")
+    ).one()
+    avg_conf = session.exec(
+        select(func.avg(AuditLog.confidence)).where(AuditLog.action == "chat")
+    ).one()
+    return {
+        "users": total_users,
+        "teams": total_teams,
+        "total_queries": total_chats,
+        "avg_confidence": round(avg_conf or 0.0, 3),
+    }
+
+
+# -------------------------------------------------------
+# Model Delegation - Admin Endpoints
+# -------------------------------------------------------
+
+def _build_model_request_read(
+    req: ModelRequest,
+    session: SessionDep,
+) -> ModelRequestRead:
+    team = session.get(Team, req.team_id)
+    requester = session.get(User, req.requester_id)
+    if not team or not requester:
+        raise HTTPException(status_code=404, detail="Related team or user not found")
+
+    reviewer_username = None
+    if req.reviewed_by:
+        reviewer = session.get(User, req.reviewed_by)
+        if reviewer:
+            reviewer_username = reviewer.username
+
+    return ModelRequestRead(
+        id=req.id,
+        team_id=req.team_id,
+        team_name=team.name,
+        requester_id=req.requester_id,
+        requester_username=requester.username,
+        llm_provider=req.llm_provider,
+        llm_model=req.llm_model,
+        embed_provider=req.embed_provider,
+        embed_model=req.embed_model,
+        justification=req.justification,
+        status=req.status,
+        reviewed_by=req.reviewed_by,
+        reviewer_username=reviewer_username,
+        reviewed_at=req.reviewed_at,
+        rejection_reason=req.rejection_reason,
+        created_at=req.created_at,
+    )
+
+
+@router.get("/model-requests", response_model=List[ModelRequestRead])
+def list_model_requests(
+    _: AdminUser,
+    session: SessionDep,
+    status: Optional[ModelRequestStatus] = None,
+) -> List[ModelRequestRead]:
+    query = select(ModelRequest).order_by(ModelRequest.created_at.desc())
+    if status is not None:
+        query = query.where(ModelRequest.status == status)
+    requests = session.exec(query).all()
+    return [_build_model_request_read(req, session) for req in requests]
+
+
+@router.post("/model-requests/{request_id}/approve", response_model=ModelRequestRead)
+def approve_model_request(
+    request_id: int,
+    current_user: AdminUser,
+    session: SessionDep,
+) -> ModelRequestRead:
+    request = session.get(ModelRequest, request_id)
+    if not request:
+        raise HTTPException(status_code=404, detail="Model request not found")
+    if request.status != ModelRequestStatus.pending:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot approve request with status: {request.status}"
+        )
+
+    team = session.get(Team, request.team_id)
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found")
+
+    embed_changed = False
+    if request.embed_provider and request.embed_model:
+        embed_changed = (
+            team.embed_provider != request.embed_provider
+            or team.embed_model != request.embed_model
+        )
+
+    if request.llm_provider and request.llm_model:
+        team.llm_provider = request.llm_provider
+        team.llm_model = request.llm_model
+
+    if request.embed_provider and request.embed_model:
+        team.embed_provider = request.embed_provider
+        team.embed_model = request.embed_model
+
+    request.status = ModelRequestStatus.approved
+    request.reviewed_by = current_user.id
+    request.reviewed_at = datetime.utcnow()
+
+    session.add(team)
+    session.add(request)
+    session.commit()
+    session.refresh(request)
+
+    try:
+        from .notifications import notify_request_reviewed
+        notify_request_reviewed(request, session)
+    except Exception:
+        pass
+
+    if embed_changed:
+        try:
+            from ..config import CHROMA_DIR
+            team_chroma = CHROMA_DIR / team.slug
+            if team_chroma.exists():
+                import chromadb
+                client = chromadb.PersistentClient(path=str(team_chroma))
+                try:
+                    client.delete_collection("zettabrain_docs")
+                except Exception:
+                    pass
+                client.get_or_create_collection("zettabrain_docs")
+                for fname in ("ingested_files.json", "bm25_index.pkl"):
+                    stale = team_chroma / fname
+                    if stale.exists():
+                        stale.unlink()
+        except Exception:
+            import logging
+            logging.error(f"Failed to auto-clear vector store for team {team.id}")
+
+    return _build_model_request_read(request, session)
+
+
+@router.post("/model-requests/{request_id}/reject", response_model=ModelRequestRead)
+def reject_model_request(
+    request_id: int,
+    body: ModelRequestReject,
+    current_user: AdminUser,
+    session: SessionDep,
+) -> ModelRequestRead:
+    request = session.get(ModelRequest, request_id)
+    if not request:
+        raise HTTPException(status_code=404, detail="Model request not found")
+    if request.status != ModelRequestStatus.pending:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot reject request with status: {request.status}"
+        )
+
+    request.status = ModelRequestStatus.rejected
+    request.reviewed_by = current_user.id
+    request.reviewed_at = datetime.utcnow()
+    request.rejection_reason = body.reason
+
+    session.add(request)
+    session.commit()
+    session.refresh(request)
+
+    try:
+        from .notifications import notify_request_reviewed
+        notify_request_reviewed(request, session)
+    except Exception:
+        pass
+
+    return _build_model_request_read(request, session)
+
+
+@router.patch("/teams/{team_id}/models", status_code=200)
+def assign_team_models(
+    team_id: int,
+    body: TeamModelConfig,
+    _: AdminUser,
+    session: SessionDep,
+) -> Dict[str, str]:
+    team = session.get(Team, team_id)
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found")
+
+    has_llm = body.llm_provider is not None or body.llm_model is not None
+    has_embed = body.embed_provider is not None or body.embed_model is not None
+
+    if not has_llm and not has_embed:
+        raise HTTPException(
+            status_code=400,
+            detail="Must provide at least one model configuration (LLM or embedding)"
+        )
+
+    if has_llm:
+        if body.llm_provider and not body.llm_model:
+            raise HTTPException(status_code=400, detail="llm_model is required when llm_provider is set")
+        if body.llm_model and not body.llm_provider:
+            raise HTTPException(status_code=400, detail="llm_provider is required when llm_model is set")
+        team.llm_provider = body.llm_provider
+        team.llm_model = body.llm_model
+
+    if has_embed:
+        if body.embed_provider and not body.embed_model:
+            raise HTTPException(status_code=400, detail="embed_model is required when embed_provider is set")
+        if body.embed_model and not body.embed_provider:
+            raise HTTPException(status_code=400, detail="embed_provider is required when embed_model is set")
+        team.embed_provider = body.embed_provider
+        team.embed_model = body.embed_model
+
+    session.add(team)
+    session.commit()
+
+    return {
+        "message": f"Model configuration updated for team '{team.name}'",
+        "team_id": str(team_id),
+        "llm_provider": team.llm_provider or "system default",
+        "llm_model": team.llm_model or "system default",
+        "embed_provider": team.embed_provider or "system default",
+        "embed_model": team.embed_model or "system default",
+    }
+
+
+@router.delete("/teams/{team_id}/models", status_code=200)
+def clear_team_models(
+    team_id: int,
+    _: AdminUser,
+    session: SessionDep,
+) -> Dict[str, str]:
+    team = session.get(Team, team_id)
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found")
+
+    team.llm_provider = None
+    team.llm_model = None
+    team.embed_provider = None
+    team.embed_model = None
+
+    session.add(team)
+    session.commit()
+
+    return {
+        "message": f"Team '{team.name}' model configuration cleared. Now using system defaults.",
+        "team_id": str(team_id),
+    }
