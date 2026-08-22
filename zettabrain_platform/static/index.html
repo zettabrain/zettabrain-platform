@@ -4,46 +4,205 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ZettaBrain Platform</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-        .container { text-align: center; padding: 2rem; }
-        h1 { font-size: 2.5rem; margin-bottom: 0.5rem; background: linear-gradient(135deg, #6366f1, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        p { color: #94a3b8; margin-bottom: 1.5rem; }
-        .features { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; max-width: 500px; margin: 0 auto; }
-        .feature { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1rem; text-align: left; }
-        .feature h3 { color: #6366f1; font-size: 0.9rem; margin-bottom: 0.3rem; }
-        .feature span { color: #94a3b8; font-size: 0.8rem; }
-        .api-link { margin-top: 2rem; }
-        .api-link a { color: #6366f1; text-decoration: none; font-size: 0.9rem; }
-        .api-link a:hover { text-decoration: underline; }
-    </style>
+    <link rel="stylesheet" href="/static/css/app.css">
 </head>
 <body>
-    <div class="container">
-        <h1>ZettaBrain Platform</h1>
-        <p>Unified Conversational + Generative AI</p>
-        <div class="features">
-            <div class="feature">
-                <h3>Chat</h3>
-                <span>RAG-powered Q&A against team documents</span>
+    <!-- Login Screen -->
+    <div id="login-screen" class="screen active">
+        <div class="login-container">
+            <div class="login-logo">
+                <h1>ZettaBrain</h1>
+                <p>Unified AI Platform</p>
             </div>
-            <div class="feature">
-                <h3>Generate</h3>
-                <span>Skill-based document generation</span>
-            </div>
-            <div class="feature">
-                <h3>Teams</h3>
-                <span>Multi-tenant access control</span>
-            </div>
-            <div class="feature">
-                <h3>Verified</h3>
-                <span>Cryptographic answer provenance</span>
-            </div>
-        </div>
-        <div class="api-link">
-            <a href="/api/docs">API Documentation →</a>
+            <form id="login-form" autocomplete="on">
+                <div class="form-group">
+                    <label for="login-username">Username</label>
+                    <input type="text" id="login-username" name="username" required autocomplete="username">
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" name="password" required autocomplete="current-password">
+                </div>
+                <button type="submit" class="btn btn-primary btn-full">Sign In</button>
+                <p id="login-error" class="error-text"></p>
+            </form>
         </div>
     </div>
+
+    <!-- Change Password Screen -->
+    <div id="change-pw-screen" class="screen">
+        <div class="login-container">
+            <div class="login-logo">
+                <h1>Change Password</h1>
+                <p>You must set a new password before continuing.</p>
+            </div>
+            <form id="change-pw-form">
+                <div class="form-group">
+                    <label for="new-password">New Password (min 8 characters)</label>
+                    <input type="password" id="new-password" required minlength="8" autocomplete="new-password">
+                </div>
+                <div class="form-group">
+                    <label for="confirm-password">Confirm Password</label>
+                    <input type="password" id="confirm-password" required minlength="8" autocomplete="new-password">
+                </div>
+                <button type="submit" class="btn btn-primary btn-full">Set Password</button>
+                <p id="change-pw-error" class="error-text"></p>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main Application -->
+    <div id="app-screen" class="screen">
+        <!-- Top Bar -->
+        <header class="topbar">
+            <div class="topbar-left">
+                <h2 class="brand">ZettaBrain</h2>
+            </div>
+            <nav class="topbar-tabs" id="main-tabs">
+                <button class="tab active" data-tab="chat">Chat</button>
+                <button class="tab" data-tab="generate">Generate</button>
+                <button class="tab" data-tab="documents">Documents</button>
+                <button class="tab" data-tab="skills">Skills</button>
+                <button class="tab" data-tab="admin" id="admin-tab">Admin</button>
+            </nav>
+            <div class="topbar-right">
+                <span id="user-display" class="user-badge"></span>
+                <button id="logout-btn" class="btn btn-sm btn-ghost">Logout</button>
+            </div>
+        </header>
+
+        <!-- Tab Panels -->
+        <main class="main-content">
+            <!-- Chat Tab -->
+            <section id="panel-chat" class="panel active">
+                <div class="panel-header">
+                    <h3>Chat with Documents</h3>
+                    <select id="chat-team-select" class="select"></select>
+                </div>
+                <div class="chat-container">
+                    <div id="chat-messages" class="chat-messages">
+                        <div class="chat-empty">
+                            <p>Select a team and ask a question about your documents.</p>
+                        </div>
+                    </div>
+                    <form id="chat-form" class="chat-input-area">
+                        <input type="text" id="chat-input" placeholder="Ask a question..." autocomplete="off">
+                        <button type="submit" class="btn btn-primary">Send</button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Generate Tab -->
+            <section id="panel-generate" class="panel">
+                <div class="panel-header">
+                    <h3>Generate Document</h3>
+                    <select id="gen-team-select" class="select"></select>
+                </div>
+                <div class="generate-container">
+                    <div class="gen-form-area">
+                        <div class="form-group">
+                            <label>Skill</label>
+                            <select id="gen-skill-select" class="select"></select>
+                        </div>
+                        <div id="gen-skill-info" class="skill-info"></div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Customer Name</label>
+                                <input type="text" id="gen-customer-name">
+                            </div>
+                            <div class="form-group">
+                                <label>Customer Email</label>
+                                <input type="email" id="gen-customer-email">
+                            </div>
+                            <div class="form-group">
+                                <label>Customer Phone</label>
+                                <input type="tel" id="gen-customer-phone">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Input / Instructions</label>
+                            <textarea id="gen-input" rows="6" placeholder="Describe what you need generated..."></textarea>
+                        </div>
+                        <button id="gen-submit" class="btn btn-primary">Generate</button>
+                    </div>
+                    <div id="gen-output" class="gen-output">
+                        <div class="gen-output-placeholder">Generated content will appear here.</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Documents Tab -->
+            <section id="panel-documents" class="panel">
+                <div class="panel-header">
+                    <h3>Generated Documents</h3>
+                    <select id="docs-team-filter" class="select">
+                        <option value="">All Teams</option>
+                    </select>
+                </div>
+                <div id="docs-list" class="docs-list">
+                    <p class="empty-state">No documents generated yet.</p>
+                </div>
+                <!-- Document detail modal -->
+                <div id="doc-modal" class="modal hidden">
+                    <div class="modal-backdrop"></div>
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3 id="doc-modal-title"></h3>
+                            <button class="modal-close">&times;</button>
+                        </div>
+                        <div id="doc-modal-body" class="modal-body"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Skills Tab -->
+            <section id="panel-skills" class="panel">
+                <div class="panel-header">
+                    <h3>Available Skills</h3>
+                </div>
+                <div id="skills-grid" class="skills-grid">
+                    <p class="empty-state">No skills configured yet.</p>
+                </div>
+            </section>
+
+            <!-- Admin Tab -->
+            <section id="panel-admin" class="panel">
+                <div class="panel-header">
+                    <h3>Administration</h3>
+                </div>
+                <div class="admin-container">
+                    <div class="admin-section">
+                        <h4>LLM Provider</h4>
+                        <div id="admin-provider-form" class="admin-form"></div>
+                    </div>
+                    <div class="admin-section">
+                        <h4>System Health</h4>
+                        <div id="admin-health" class="admin-health"></div>
+                    </div>
+                    <div class="admin-section">
+                        <h4>Teams</h4>
+                        <div id="admin-teams"></div>
+                        <form id="admin-create-team" class="inline-form">
+                            <input type="text" id="new-team-name" placeholder="New team name" required>
+                            <input type="text" id="new-team-desc" placeholder="Description">
+                            <button type="submit" class="btn btn-sm btn-primary">Create Team</button>
+                        </form>
+                    </div>
+                    <div class="admin-section">
+                        <h4>Document Ingestion</h4>
+                        <form id="admin-ingest-form" class="inline-form">
+                            <select id="ingest-team-select" class="select"></select>
+                            <input type="file" id="ingest-file" accept=".pdf,.docx,.txt,.md" multiple>
+                            <button type="submit" class="btn btn-sm btn-primary">Ingest</button>
+                        </form>
+                        <p id="ingest-status" class="status-text"></p>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/app.js"></script>
 </body>
 </html>
