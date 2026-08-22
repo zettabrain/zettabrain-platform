@@ -6,7 +6,8 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import CHROMA_DIR, DATA_DIR, SKILLS_DIR
@@ -18,8 +19,28 @@ app = FastAPI(
     title="ZettaBrain Platform",
     description="Unified conversational + generative AI with multi-tenant access control",
     version="0.1.0",
-    docs_url="/api/docs",
+    docs_url=None,
+    redoc_url=None,
 )
+
+
+@app.get("/api/docs", include_in_schema=False)
+async def custom_swagger_ui():
+    return get_swagger_ui_html(
+        openapi_url="/openapi.json",
+        title="ZettaBrain Platform - API Docs",
+        swagger_ui_cdn_url="https://unpkg.com/swagger-ui-dist@5",
+        swagger_favicon_url="",
+    )
+
+
+@app.get("/api/redoc", include_in_schema=False)
+async def custom_redoc():
+    return get_redoc_html(
+        openapi_url="/openapi.json",
+        title="ZettaBrain Platform - API Docs",
+        redoc_js_url="https://unpkg.com/redoc@next/bundles/redoc.standalone.js",
+    )
 
 app.add_middleware(
     CORSMiddleware,
