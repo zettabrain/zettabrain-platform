@@ -18,20 +18,35 @@ _llm_cache: Dict[Tuple, BaseLLM] = {}
 _embed_cache: Dict[Tuple, Embeddings] = {}
 
 
+CLOUD_PROVIDERS = {
+    "groq": "https://api.groq.com/openai/v1",
+    "together": "https://api.together.xyz/v1",
+    "cerebras": "https://api.cerebras.ai/v1",
+    "openrouter": "https://openrouter.ai/api/v1",
+    "fireworks": "https://api.fireworks.ai/inference/v1",
+}
+
+
 def get_chat_llm(
     provider: str,
     model: str,
     ollama_host: Optional[str] = None,
     openai_key: Optional[str] = None,
     anthropic_key: Optional[str] = None,
+    cloud_api_key: Optional[str] = None,
 ) -> BaseLLM:
-    """Create a LangChain LLM for chat/RAG (cached)."""
+    """Create a LangChain LLM for chat/RAG (cached).
+
+    Supports: ollama, openai, claude, groq, together, cerebras, openrouter, fireworks.
+    """
     if provider == "ollama":
         cache_key = (provider, model, ollama_host)
     elif provider == "openai":
         cache_key = (provider, model, openai_key[:8] if openai_key else None)
     elif provider == "claude":
         cache_key = (provider, model, anthropic_key[:8] if anthropic_key else None)
+    elif provider in CLOUD_PROVIDERS:
+        cache_key = (provider, model, cloud_api_key[:8] if cloud_api_key else None)
     else:
         raise ValueError(f"Unsupported chat LLM provider: {provider}")
 
@@ -43,6 +58,21 @@ def get_chat_llm(
             raise ValueError("ollama_host is required for Ollama provider")
         from langchain_ollama import OllamaLLM
         llm = OllamaLLM(model=model, base_url=ollama_host, temperature=0.0, num_predict=1024)
+
+    elif provider in CLOUD_PROVIDERS:
+        if not cloud_api_key:
+            env_var = f"{provider.upper()}_API_KEY"
+            cloud_api_key = os.getenv(env_var) or os.getenv("ZBP_LLM_API_KEY")
+        if not cloud_api_key:
+            raise ValueError(f"API key required for {provider}. Set {provider.upper()}_API_KEY.")
+        from langchain_openai import ChatOpenAI
+        llm = ChatOpenAI(
+            model=model,
+            api_key=cloud_api_key,
+            base_url=CLOUD_PROVIDERS[provider],
+            temperature=0.0,
+            max_tokens=1024,
+        )
 
     elif provider == "openai":
         if not openai_key:
@@ -112,20 +142,23 @@ def create_generation_provider(
     provider_name: Optional[str] = None,
     **kwargs,
 ) -> LLMProvider:
-    """Create a direct LLM provider for document generation (streaming support)."""
-    provider_name = provider_name or os.getenv("LLM_PROVIDER", "ollama").lower()
+    """Create a direct LLM provider for document generation (streaming support).
+
+    Supported providers:
+      - ollama: Local models (requires Ollama running)
+      - groq, together, cerebras, openrouter, fireworks: Free cloud APIs (OpenAI-compatible)
+      - openai: OpenAI API (paid)
+      - claude/anthropic: Anthropic API (paid)
+    """
+    provider_name = provider_name or os.getenv("ZBP_LLM_PROVIDER", os.getenv("LLM_PROVIDER", "groq")).lower()
 
     if provider_name == "ollama":
         from .providers.ollama import OllamaProvider
         return OllamaProvider(**kwargs)
 
-    elif provider_name == "groq":
-        from .providers.groq_provider import GroqProvider
-        if "model" not in kwargs:
-            groq_model = os.getenv("GROQ_MODEL")
-            if groq_model:
-                kwargs["model"] = groq_model
-        return GroqProvider(**kwargs)
+    elif provider_name in ("groq", "together", "cerebras", "openrouter", "fireworks", "openai"):
+        from .providers.openai_compatible import OpenAICompatibleProvider
+        return OpenAICompatibleProvider(provider_name=provider_name, **kwargs)
 
     elif provider_name in ("claude", "anthropic"):
         try:
@@ -134,15 +167,8 @@ def create_generation_provider(
         except ImportError:
             raise ValueError("Claude provider requires anthropic package: pip install anthropic")
 
-    elif provider_name == "openai":
-        try:
-            from .providers.openai_provider import OpenAIProvider
-            return OpenAIProvider(**kwargs)
-        except ImportError:
-            raise ValueError("OpenAI provider requires openai package: pip install openai")
-
     else:
         raise ValueError(
             f"Unknown generation provider: {provider_name}. "
-            f"Supported: ollama, groq, claude, openai"
+            f"Supported: ollama, groq, together, cerebras, openrouter, fireworks, openai, claude"
         )

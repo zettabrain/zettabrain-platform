@@ -48,6 +48,7 @@ def chat(
             ollama_host=config["ollama_host"],
             openai_key=config["openai_key"],
             anthropic_key=config["anthropic_key"],
+            cloud_api_key=config.get("cloud_api_key"),
         )
     except Exception as e:
         error_msg = str(e)

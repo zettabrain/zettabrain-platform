@@ -31,6 +31,8 @@ def _migrate_db() -> None:
         ("team", "embed_provider",     "VARCHAR"),
         ("team", "embed_model",        "VARCHAR"),
         ("team", "skills_enabled",     "BOOLEAN DEFAULT 1"),
+        ("user", "failed_login_count", "INTEGER DEFAULT 0"),
+        ("user", "locked_until",       "VARCHAR"),
     ]
     with engine.connect() as conn:
         for table, col, typ in new_cols:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -13,11 +14,18 @@ from .config import CHROMA_DIR, DATA_DIR, SKILLS_DIR
 from .database import init_db
 from .provenance import init_signing_key
 from .routers import auth, chat, generate, ingest, settings, teams
+from .security.rate_limiter import RateLimitMiddleware, SecurityHeadersMiddleware
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='{"time":"%(asctime)s","level":"%(levelname)s","logger":"%(name)s","msg":"%(message)s"}',
+    datefmt="%Y-%m-%dT%H:%M:%S",
+)
 
 app = FastAPI(
     title="ZettaBrain Platform",
     description="Unified conversational + generative AI with multi-tenant access control",
-    version="0.1.0",
+    version="0.2.0",
     docs_url=None,
     redoc_url=None,
 )
@@ -41,6 +49,8 @@ SwaggerUIBundle({url:"/openapi.json",dom_id:"#swagger-ui",presets:[SwaggerUIBund
 </body>
 </html>""")
 
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RateLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -73,13 +83,21 @@ def index():
 
 @app.get("/api/status")
 def status():
+    import os
     return {
         "service": "zettabrain-platform",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "data_dir": str(DATA_DIR),
         "chroma_dir": str(CHROMA_DIR),
         "skills_dir": str(SKILLS_DIR),
         "db_exists": (DATA_DIR / "platform.db").exists(),
+        "default_llm_provider": os.getenv("ZBP_LLM_PROVIDER", "groq"),
+        "security": {
+            "rate_limiting": True,
+            "hsts": True,
+            "secrets_encrypted": True,
+            "account_lockout": True,
+        },
     }
 
 

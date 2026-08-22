@@ -201,6 +201,7 @@ def query_team(
     ollama_host: Optional[str] = None,
     openai_key: Optional[str] = None,
     anthropic_key: Optional[str] = None,
+    cloud_api_key: Optional[str] = None,
 ) -> dict:
     """Query a team's document library."""
     from ..llm.factory import get_chat_llm
@@ -237,6 +238,7 @@ def query_team(
         ollama_host=ollama_host,
         openai_key=openai_key,
         anthropic_key=anthropic_key,
+        cloud_api_key=cloud_api_key,
     )
 
     prompt  = PromptTemplate.from_template(_TEAMS_RAG_PROMPT)

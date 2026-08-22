@@ -14,24 +14,34 @@ from sqlmodel import SQLModel, select
 from ..config import CHROMA_DIR
 from ..deps import AdminUser, SessionDep
 from ..models import SystemConfig, Team
+from ..security.encryption import decrypt_value, encrypt_value
 
 router = APIRouter(prefix="/api/admin", tags=["admin-settings"])
 
 DEFAULTS: Dict[str, str] = {
     "ollama_host":          "http://localhost:11434",
-    "llm_model":            "llama3.1:8b",
+    "llm_model":            "llama-3.1-8b-instant",
     "embed_model":          "nomic-embed-text",
-    "llm_provider":         "ollama",
+    "llm_provider":         "groq",
     "embed_provider":       "ollama",
     "openai_api_key":       "",
     "openai_llm_model":     "gpt-4o",
     "openai_embed_model":   "text-embedding-3-small",
     "anthropic_api_key":    "",
     "claude_llm_model":     "claude-sonnet-4-6",
+    # Cloud LLM providers (all OpenAI-compatible — free tiers available)
     "groq_api_key":         "",
     "groq_model":           "llama-3.1-8b-instant",
-    "generation_provider":  "ollama",
-    "generation_model":     "llama3.1:8b",
+    "together_api_key":     "",
+    "together_model":       "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
+    "cerebras_api_key":     "",
+    "cerebras_model":       "llama3.1-8b",
+    "openrouter_api_key":   "",
+    "openrouter_model":     "meta-llama/llama-3.1-8b-instruct:free",
+    "fireworks_api_key":    "",
+    "fireworks_model":      "accounts/fireworks/models/llama-v3p1-8b-instruct",
+    "generation_provider":  "groq",
+    "generation_model":     "llama-3.1-8b-instant",
     "ldap_enabled":         "false",
     "ldap_url":             "",
     "ldap_bind_dn":         "",
@@ -43,12 +53,18 @@ DEFAULTS: Dict[str, str] = {
     "ldap_email_attr":      "mail",
 }
 
-SENSITIVE = {"ldap_bind_password", "openai_api_key", "anthropic_api_key", "groq_api_key"}
+SENSITIVE = {
+    "ldap_bind_password", "openai_api_key", "anthropic_api_key",
+    "groq_api_key", "together_api_key", "cerebras_api_key",
+    "openrouter_api_key", "fireworks_api_key",
+}
 
 
 def get_setting(session: Any, key: str) -> str:
     row = session.get(SystemConfig, key)
     if row is not None:
+        if key in SENSITIVE:
+            return decrypt_value(row.value)
         return row.value
     return DEFAULTS.get(key, "")
 
@@ -73,11 +89,12 @@ def update_settings(body: Dict[str, str], _: AdminUser, session: SessionDep) -> 
             continue
         if key in SENSITIVE and value == "********":
             continue
+        store_value = encrypt_value(value) if key in SENSITIVE and value else value
         row = session.get(SystemConfig, key)
         if row is None:
-            row = SystemConfig(key=key, value=value)
+            row = SystemConfig(key=key, value=store_value)
         else:
-            row.value = value
+            row.value = store_value
         session.add(row)
     session.commit()
     return read_settings(_, session)
@@ -146,10 +163,24 @@ def health_check(_: AdminUser, session: SessionDep) -> Dict[str, Any]:
             "vector_docs": count,
         })
 
+    cloud_providers_status: Dict[str, Any] = {}
+    for cp in ("groq", "together", "cerebras", "openrouter", "fireworks"):
+        cp_key = get_setting(session, f"{cp}_api_key")
+        cp_ok = False
+        if cp_key:
+            try:
+                from ..llm.providers.openai_compatible import OpenAICompatibleProvider
+                provider = OpenAICompatibleProvider(provider_name=cp, api_key=cp_key)
+                cp_ok = provider.check_health()
+            except Exception:
+                pass
+        cloud_providers_status[cp] = {"ok": cp_ok, "key_set": bool(cp_key)}
+
     return {
         "ollama": {"ok": ollama_ok, "host": ollama_host, "models": models_list},
         "openai": {"ok": openai_ok},
         "claude": {"ok": claude_ok},
+        "cloud_providers": cloud_providers_status,
         "teams": team_vector_stats,
     }
 

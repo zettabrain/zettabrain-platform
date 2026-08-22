@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING, Dict
 
 if TYPE_CHECKING:
@@ -10,11 +11,17 @@ if TYPE_CHECKING:
 from ..models import Team
 
 DEFAULTS = {
-    "llm_provider": "ollama",
-    "llm_model": "qwen2.5:14b",
-    "embed_provider": "ollama",
-    "embed_model": "nomic-embed-text",
-    "ollama_host": "http://localhost:11434",
+    "llm_provider": os.getenv("ZBP_LLM_PROVIDER", "groq"),
+    "llm_model": os.getenv("ZBP_LLM_MODEL", "llama-3.1-8b-instant"),
+    "embed_provider": os.getenv("ZBP_EMBED_PROVIDER", "ollama"),
+    "embed_model": os.getenv("ZBP_EMBED_MODEL", "nomic-embed-text"),
+    "ollama_host": os.getenv("OLLAMA_HOST", "http://localhost:11434"),
+}
+
+
+SENSITIVE_KEYS = {
+    "openai_api_key", "anthropic_api_key", "groq_api_key",
+    "together_api_key", "cerebras_api_key", "openrouter_api_key", "fireworks_api_key",
 }
 
 
@@ -22,6 +29,9 @@ def _get_setting(session, key: str) -> str:
     from ..models import SystemConfig
     row = session.get(SystemConfig, key)
     if row is not None:
+        if key in SENSITIVE_KEYS:
+            from ..security.encryption import decrypt_value
+            return decrypt_value(row.value)
         return row.value
     return ""
 
@@ -64,6 +74,16 @@ def resolve_team_models(session, team_id: int) -> Dict[str, str | None]:
     openai_key = _get_setting(session, "openai_api_key") or None
     anthropic_key = _get_setting(session, "anthropic_api_key") or None
 
+    cloud_providers = ("groq", "together", "cerebras", "openrouter", "fireworks")
+    cloud_api_key = None
+    if llm_provider in cloud_providers:
+        cloud_api_key = (
+            _get_setting(session, f"{llm_provider}_api_key")
+            or os.getenv(f"{llm_provider.upper()}_API_KEY")
+            or os.getenv("ZBP_LLM_API_KEY")
+            or None
+        )
+
     return {
         "llm_provider": llm_provider,
         "llm_model": llm_model,
@@ -72,6 +92,7 @@ def resolve_team_models(session, team_id: int) -> Dict[str, str | None]:
         "ollama_host": ollama_host,
         "openai_key": openai_key,
         "anthropic_key": anthropic_key,
+        "cloud_api_key": cloud_api_key,
     }
 
 
@@ -96,6 +117,16 @@ def _resolve_system_defaults(session) -> Dict[str, str | None]:
     openai_key = _get_setting(session, "openai_api_key") or None
     anthropic_key = _get_setting(session, "anthropic_api_key") or None
 
+    cloud_providers = ("groq", "together", "cerebras", "openrouter", "fireworks")
+    cloud_api_key = None
+    if llm_provider in cloud_providers:
+        cloud_api_key = (
+            _get_setting(session, f"{llm_provider}_api_key")
+            or os.getenv(f"{llm_provider.upper()}_API_KEY")
+            or os.getenv("ZBP_LLM_API_KEY")
+            or None
+        )
+
     return {
         "llm_provider": llm_provider,
         "llm_model": llm_model,
@@ -104,4 +135,5 @@ def _resolve_system_defaults(session) -> Dict[str, str | None]:
         "ollama_host": ollama_host,
         "openai_key": openai_key,
         "anthropic_key": anthropic_key,
+        "cloud_api_key": cloud_api_key,
     }
