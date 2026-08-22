@@ -4,6 +4,32 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
+
+
+SWAGGER_FILES = {
+    "swagger-ui-bundle.js": "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js",
+    "swagger-ui.css": "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css",
+}
+
+
+def _fetch_swagger_ui():
+    """Download Swagger UI assets locally so /api/docs works without external CDN."""
+    import urllib.request
+
+    vendor_dir = Path(__file__).parent / "static" / "vendor"
+    vendor_dir.mkdir(parents=True, exist_ok=True)
+
+    for filename, url in SWAGGER_FILES.items():
+        dest = vendor_dir / filename
+        if dest.exists():
+            continue
+        print(f"  Downloading {filename}...")
+        try:
+            urllib.request.urlretrieve(url, str(dest))
+        except Exception as e:
+            print(f"  Warning: could not download {filename}: {e}")
+            print(f"  /api/docs may not work. You can manually place the file at: {dest}")
 
 
 def main():
@@ -24,9 +50,13 @@ def main():
             print("Database initialized with default admin (admin / P@ssword!)")
         else:
             print("Database already exists, migrations applied.")
+        _fetch_swagger_ui()
+        print("Setup complete.")
         return
 
-    # serve
+    # serve — ensure swagger assets exist
+    _fetch_swagger_ui()
+
     import uvicorn
     from .config import PORT, TLS_CERT, TLS_ENABLED, TLS_KEY
 
