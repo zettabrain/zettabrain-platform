@@ -45,11 +45,14 @@ def _migrate_db() -> None:
 
 def init_db() -> bool:
     """Create tables, run migrations, and seed a default admin. Returns True if first run."""
+    from .models import (  # noqa: F401 — import so SQLModel registers tables
+        AuditLog, GeneratedDocument, ModelRequest, SystemConfig, Team, TeamMember, User,
+    )
+    from .auth import hash_password
+    from .models import SystemRole
+
     SQLModel.metadata.create_all(engine)
     _migrate_db()
-
-    from .models import SystemRole, User
-    from .auth import hash_password
 
     with Session(engine) as session:
         existing = session.exec(select(User).where(User.system_role == SystemRole.admin)).first()
