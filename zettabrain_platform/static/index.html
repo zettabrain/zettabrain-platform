@@ -1334,7 +1334,7 @@ async function loadLicense() {
   };
   const sl = STATE_LABEL[lic.state] || { text: lic.state, color: 'var(--muted)', icon: 'ℹ️' };
   const featuresHtml = (lic.features && lic.features.length)
-    ? lic.features.map(f => `<span style="background:rgba(129,140,248,.15);color:var(--accent2);padding:2px 8px;border-radius:99px;font-size:0.78rem;">${f}</span>`).join(' ')
+    ? lic.features.map(f => `<span style="background:rgba(91,100,244,.1);color:var(--accent2);padding:2px 8px;border-radius:99px;font-size:0.78rem;">${f}</span>`).join(' ')
     : '<span style="color:var(--muted)">—</span>';
 
   el('admin-content').innerHTML = `
@@ -1380,7 +1380,7 @@ async function loadLicense() {
     </div>
 
     ${!lic.licensed ? `
-    <div class="info-card" style="border-color:rgba(129,140,248,.3);">
+    <div class="info-card" style="border-color:rgba(91,100,244,.2);">
       <h3>Upgrade to a Full License</h3>
       <p style="color:var(--muted);font-size:0.85rem;">
         Your trial ${lic.days_left != null && lic.days_left > 0 ? `has <strong style="color:var(--text)">${lic.days_left} days remaining</strong>` : 'has expired'}.
@@ -1779,7 +1779,7 @@ async function loadSystemConfig() {
           Note: Claude 3.x models are deprecated. Use Claude 4.x for best results.
         </small>
       </div>
-      <div style="padding:10px;background:rgba(129,140,248,.1);border:1px solid rgba(129,140,248,.3);border-radius:var(--radius);font-size:0.82rem;">
+      <div style="padding:10px;background:rgba(91,100,244,.06);border:1px solid rgba(91,100,244,.2);border-radius:var(--radius);font-size:0.82rem;">
         <strong>ℹ️ Note:</strong> Claude does not support embeddings. Use OpenAI or Ollama for embedding provider.
       </div>
       <button class="btn btn-ghost btn-sm" style="margin-top:10px;" onclick="testClaudeConnection()">Test Claude Connection</button>
@@ -3280,7 +3280,7 @@ async function refreshAuditTable() {
         const provider = providerMatch ? providerMatch[1] : 'ollama';
         const providerColors = {
           ollama: 'rgba(34,197,94,.18)',
-          openai: 'rgba(129,140,248,.18)',
+          openai: 'rgba(91,100,244,.12)',
           claude: 'rgba(245,158,11,.18)'
         };
         const providerIcons = {
