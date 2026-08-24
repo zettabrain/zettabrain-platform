@@ -10,22 +10,22 @@ from typing import List, Optional
 from langchain_chroma import Chroma
 from langchain_core.prompts import PromptTemplate
 
-from zettabrain_rag.retrieval import format_context
-
-# Teams-specific prompt — stricter than the base zettabrain-rag prompt.
-# Forces the LLM to use the sentinel when it cannot answer from context,
-# which lets us zero out confidence and sources programmatically.
+# Teams-specific prompt — balanced between grounding and usefulness.
+# Allows summarization and synthesis from context while preventing hallucination.
 _TEAMS_RAG_PROMPT = """\
-You are a precise document assistant for a team workspace.
-Answer the question using ONLY the information in the context below.
+You are a helpful document assistant for a team workspace.
+Answer the question using the information in the context below.
 
 Rules:
-- If the context contains a clear answer, give it directly and concisely.
-- If the context does NOT contain enough information to answer the question, \
+- Use the context to answer the question. Summarize, synthesize, or extract \
+information as needed to provide a useful answer.
+- If the context contains relevant information, use it to answer — even if it \
+requires combining information from multiple sections.
+- If the context truly contains NO relevant information at all for the question, \
 respond with exactly this phrase and nothing else:
   "This question is outside the scope of this team's document library."
-- Never speculate or use knowledge outside the provided context.
-- Never list or describe which documents are available.
+- Do not invent facts, figures, or claims not present in the context.
+- When summarizing, cover the key points from the available context.
 
 Context:
 {context}
@@ -59,6 +59,25 @@ def _is_out_of_scope(answer: str) -> bool:
 import re as _re
 
 from .config import CHROMA_DIR, EMBED_MODEL, LLM_MODEL, OLLAMA_HOST, team_chroma_path
+
+
+def _format_context(docs: list) -> str:
+    """Format retrieved documents into structured context for the LLM.
+
+    Uses clear markdown headers (same format as skills corpus retriever)
+    to help the model identify and use the content.
+    """
+    if not docs:
+        return ""
+    parts = []
+    for i, doc in enumerate(docs, 1):
+        source = Path(doc.metadata.get("source", "unknown")).stem
+        page = doc.metadata.get("page", "")
+        label = f"{source} (p.{page})" if page != "" else source
+        parts.append(f"## Source [{i}]: {label}")
+        parts.append(doc.page_content)
+        parts.append("")
+    return "\n".join(parts)
 
 _CONFIDENCE_THRESHOLD = 0.55
 
@@ -321,7 +340,7 @@ def query_team(
     )
 
     prompt  = PromptTemplate.from_template(_TEAMS_RAG_PROMPT)
-    context = format_context(docs)
+    context = _format_context(docs)
     response = llm.invoke(prompt.format(context=context, question=question))
 
     # Handle different response types (string or AIMessage object)
