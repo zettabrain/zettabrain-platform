@@ -291,6 +291,20 @@
             <div id="skills-list" style="font-size:0.85rem;color:var(--muted);">Select a team to view skills.</div>
           </div>
 
+          <!-- Upload skill file -->
+          <div style="border:1px solid var(--border);border-radius:10px;padding:20px;background:var(--surface);margin-bottom:16px;">
+            <h3 style="margin:0 0 12px 0;font-size:0.95rem;">Upload Skill File</h3>
+            <p style="font-size:0.8rem;color:var(--muted);margin-bottom:12px;">Upload an existing <code>.md</code> skill file with YAML frontmatter (name, version, description) and instructions in the body.</p>
+            <div style="display:flex;gap:12px;align-items:center;">
+              <label class="btn btn-ghost" style="cursor:pointer;flex:1;text-align:center;border:2px dashed var(--border);padding:16px;border-radius:8px;">
+                <input type="file" id="skill-file-input" accept=".md,.markdown" style="display:none;" onchange="handleSkillFileSelect(event)">
+                <span id="skill-file-label">📂 Choose .md file</span>
+              </label>
+              <button class="btn btn-primary" id="skill-upload-btn" onclick="uploadSkillFile()" disabled style="white-space:nowrap;">Upload</button>
+            </div>
+            <div id="skill-upload-status" style="font-size:0.8rem;margin-top:8px;color:var(--muted);"></div>
+          </div>
+
           <!-- Create new skill form -->
           <div style="border:1px solid var(--border);border-radius:10px;padding:20px;background:var(--surface);">
             <h3 style="margin:0 0 16px 0;font-size:0.95rem;">Create New Skill</h3>
@@ -2249,6 +2263,19 @@ async function loadAdminTeams() {
           <div id="tcard-model-requests-${t.id}" style="margin-top:10px;"></div>
         </div>
 
+        <!-- Skills upload -->
+        <div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border);">
+          <div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">Skills</div>
+          <div id="tcard-skills-${t.id}" style="font-size:0.82rem;color:var(--muted);margin-bottom:8px;">Loading...</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;border:1px dashed var(--border);border-radius:6px;padding:6px 10px;font-size:0.78rem;color:var(--muted);flex:1;">
+              <input type="file" id="tcard-skill-file-${t.id}" accept=".md,.markdown" multiple style="display:none;" onchange="this.nextElementSibling.textContent = this.files.length + ' file(s)'">
+              <span>📂 Upload .md skill(s)</span>
+            </label>
+            <button class="btn btn-sm btn-primary" onclick="adminUploadSkills(${t.id})">Upload</button>
+          </div>
+        </div>
+
         <!-- members -->
         <div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">Members</div>
         <div class="members-list" id="tcard-members-${t.id}">
@@ -2305,22 +2332,78 @@ async function loadAdminTeams() {
         <div class="field"><label>Description</label><input type="text" id="nt-desc" placeholder="Optional description"></div>
         <div class="field"><label>Docs Folder</label><input type="text" id="nt-docs" placeholder="/path/to/docs"></div>
       </div>
-      <button class="btn btn-primary btn-sm" onclick="createTeam()">Create Team</button>
+      <div class="form-row" style="margin-top:8px;">
+        <div class="field" style="flex:1;">
+          <label>Upload Skills (optional)</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;border:2px dashed var(--border);border-radius:8px;padding:10px 12px;font-size:0.82rem;color:var(--muted);">
+            <input type="file" id="nt-skills-files" accept=".md,.markdown" multiple style="display:none;" onchange="updateNewTeamSkillsLabel()">
+            <span id="nt-skills-label">📂 Choose .md skill files</span>
+          </label>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="createTeam()" style="margin-top:10px;">Create Team</button>
       <span id="nt-msg" style="font-size:0.82rem;margin-left:8px;"></span>
     </div>
     <div id="team-cards-list">${teamCards || '<div style="color:var(--muted)">No teams yet</div>'}</div>
   `;
 
-  // Load members for all teams
+  // Load members and skills for all teams
   for (const t of teams) {
     loadTeamMembersCard(t.id);
     loadTeamModelConfig(t.id);
+    loadTeamSkillsCard(t.id);
   }
 }
 
 function toggleTeamCard(teamId) {
   const body = el(`tcard-body-${teamId}`);
   body.classList.toggle('hidden');
+}
+
+async function loadTeamSkillsCard(teamId) {
+  const container = el(`tcard-skills-${teamId}`);
+  if (!container) return;
+  try {
+    const data = await api('GET', `/api/teams/${teamId}/skills`);
+    const skills = data.skills || [];
+    if (!skills.length) {
+      container.innerHTML = '<span style="color:var(--muted);">No skills yet (built-in defaults are available)</span>';
+      return;
+    }
+    container.innerHTML = skills.map(s => {
+      const tag = s.team_specific ? ' <span style="color:var(--accent);font-size:0.7rem;">(custom)</span>' : '<span style="font-size:0.7rem;color:var(--muted);">(built-in)</span>';
+      return `<span style="display:inline-block;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:2px 8px;margin:2px 4px 2px 0;font-size:0.78rem;">${escHtml(s.name)} ${tag}</span>`;
+    }).join('');
+  } catch(e) {
+    container.innerHTML = '<span style="color:var(--muted);font-size:0.78rem;">Could not load skills</span>';
+  }
+}
+
+async function adminUploadSkills(teamId) {
+  const fileInput = el(`tcard-skill-file-${teamId}`);
+  if (!fileInput || !fileInput.files.length) {
+    toast('Select .md skill file(s) first', 'error');
+    return;
+  }
+  let uploaded = 0;
+  let errors = [];
+  for (const file of fileInput.files) {
+    try {
+      const content = await file.text();
+      await api('POST', `/api/teams/${teamId}/skills/upload`, { content, filename: file.name });
+      uploaded++;
+    } catch (e) {
+      errors.push(`${file.name}: ${e.message}`);
+    }
+  }
+  if (uploaded > 0) {
+    toast(`${uploaded} skill(s) uploaded`);
+    loadTeamSkillsCard(teamId);
+  }
+  if (errors.length > 0) {
+    toast(errors.join('; '), 'error');
+  }
+  fileInput.value = '';
 }
 
 async function loadTeamMembersCard(teamId) {
@@ -2346,6 +2429,16 @@ async function loadTeamMembersCard(teamId) {
   }
 }
 
+function updateNewTeamSkillsLabel() {
+  const input = el('nt-skills-files');
+  const label = el('nt-skills-label');
+  if (input && input.files.length > 0) {
+    label.textContent = `📄 ${input.files.length} file(s) selected`;
+  } else {
+    label.textContent = '📂 Choose .md skill files';
+  }
+}
+
 async function createTeam() {
   const name = el('nt-name').value.trim();
   const desc = el('nt-desc').value.trim();
@@ -2357,10 +2450,30 @@ async function createTeam() {
     return;
   }
   try {
-    await api('POST', '/api/teams/', { name, description: desc || null, docs_folder: docs || null });
+    const team = await api('POST', '/api/teams/', { name, description: desc || null, docs_folder: docs || null });
+
+    // Upload skill files if any were selected
+    const skillFiles = el('nt-skills-files')?.files;
+    let skillsUploaded = 0;
+    if (skillFiles && skillFiles.length > 0) {
+      for (const file of skillFiles) {
+        try {
+          const content = await file.text();
+          await api('POST', `/api/teams/${team.id}/skills/upload`, {
+            content: content,
+            filename: file.name,
+          });
+          skillsUploaded++;
+        } catch (e) {
+          console.warn(`Failed to upload skill ${file.name}:`, e.message);
+        }
+      }
+    }
+
+    const skillMsg = skillsUploaded > 0 ? ` + ${skillsUploaded} skill(s) uploaded` : '';
     msg.style.color = 'var(--success)';
-    msg.textContent = `Team "${name}" created`;
-    toast(`Team "${name}" created`);
+    msg.textContent = `Team "${name}" created${skillMsg}`;
+    toast(`Team "${name}" created${skillMsg}`);
     loadAdminTeams();
     loadTeams();
   } catch(e) {
@@ -3726,6 +3839,62 @@ async function deleteSkill(skillName) {
     loadSkillsManager();
   } catch (e) {
     showToast(e.message || 'Failed to delete skill', 'error');
+  }
+}
+
+// ── Skill file upload ────────────────────────────────────────────────────────
+let _pendingSkillFile = null;
+
+function handleSkillFileSelect(event) {
+  const file = event.target.files[0];
+  if (!file) {
+    _pendingSkillFile = null;
+    el('skill-file-label').textContent = '📂 Choose .md file';
+    el('skill-upload-btn').disabled = true;
+    return;
+  }
+  _pendingSkillFile = file;
+  el('skill-file-label').textContent = `📄 ${file.name}`;
+  el('skill-upload-btn').disabled = false;
+  el('skill-upload-status').textContent = '';
+}
+
+async function uploadSkillFile() {
+  const teamId = el('manage-team-select').value;
+  if (!teamId) { showToast('Select a team first', 'error'); return; }
+  if (!_pendingSkillFile) { showToast('Select a file first', 'error'); return; }
+
+  const btn = el('skill-upload-btn');
+  const status = el('skill-upload-status');
+  btn.disabled = true;
+  btn.textContent = 'Uploading...';
+  status.textContent = 'Validating skill file...';
+
+  try {
+    const content = await _pendingSkillFile.text();
+
+    if (!content.startsWith('---')) {
+      throw new Error('Invalid skill file — must start with YAML frontmatter (---)');
+    }
+
+    const data = await api('POST', `/api/teams/${teamId}/skills/upload`, {
+      content: content,
+      filename: _pendingSkillFile.name,
+    });
+
+    status.textContent = '';
+    showToast(data.message || 'Skill uploaded successfully');
+    _pendingSkillFile = null;
+    el('skill-file-input').value = '';
+    el('skill-file-label').textContent = '📂 Choose .md file';
+    loadSkillsManager();
+    loadSkillsForTeam();
+  } catch (e) {
+    status.textContent = '';
+    showToast(e.message || 'Upload failed', 'error');
+  } finally {
+    btn.disabled = !_pendingSkillFile;
+    btn.textContent = 'Upload';
   }
 }
 
