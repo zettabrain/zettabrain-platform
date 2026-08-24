@@ -64,9 +64,6 @@ class Team(SQLModel, table=True):
     embed_provider: Optional[str] = None
     embed_model:    Optional[str] = None
 
-    # Generation features
-    skills_enabled: bool = Field(default=True)
-
     members:        List["TeamMember"]    = Relationship(back_populates="team")
     audit_logs:     List["AuditLog"]      = Relationship(back_populates="team")
     model_requests: List["ModelRequest"]  = Relationship(back_populates="team")
@@ -87,44 +84,43 @@ class TeamMember(SQLModel, table=True):
 
 
 # -------------------------------------------------------
-# Model Requests
+# Model Requests (team-level model configuration requests)
 # -------------------------------------------------------
 class ModelRequest(SQLModel, table=True):
     id:              Optional[int]         = Field(default=None, primary_key=True)
     team_id:         int                   = Field(foreign_key="team.id")
     requester_id:    int                   = Field(foreign_key="user.id")
 
+    # Requested model configuration
     llm_provider:    Optional[str]         = None
     llm_model:       Optional[str]         = None
     embed_provider:  Optional[str]         = None
     embed_model:     Optional[str]         = None
 
-    justification:   str
+    justification:   str                   # Why this model is needed
     status:          ModelRequestStatus    = Field(default=ModelRequestStatus.pending)
 
+    # Admin review
     reviewed_by:     Optional[int]         = Field(default=None, foreign_key="user.id")
     reviewed_at:     Optional[datetime]    = None
     rejection_reason: Optional[str]        = None
 
     created_at:      datetime              = Field(default_factory=datetime.utcnow)
 
+    # Relationships
     team:     Optional["Team"] = Relationship(back_populates="model_requests")
-    requester: Optional["User"] = Relationship(
-        sa_relationship_kwargs={"foreign_keys": "[ModelRequest.requester_id]"}
-    )
-    reviewer:  Optional["User"] = Relationship(
-        sa_relationship_kwargs={"foreign_keys": "[ModelRequest.reviewed_by]"}
-    )
+    requester: Optional["User"] = Relationship(sa_relationship_kwargs={"foreign_keys": "[ModelRequest.requester_id]"})
+    reviewer:  Optional["User"] = Relationship(sa_relationship_kwargs={"foreign_keys": "[ModelRequest.reviewed_by]"})
 
 
 # -------------------------------------------------------
-# Audit log (covers both chat and generation actions)
+# Audit log
 # -------------------------------------------------------
 class AuditLog(SQLModel, table=True):
     id:               Optional[int]   = Field(default=None, primary_key=True)
     user_id:          Optional[int]   = Field(default=None, foreign_key="user.id")
     team_id:          Optional[int]   = Field(default=None, foreign_key="team.id")
-    action:           str             # "chat" | "generate" | "ingest" | "refine"
+    action:           str
     query:            Optional[str]   = None
     response_preview: Optional[str]   = None
     chunks_used:      Optional[int]   = None
@@ -132,40 +128,18 @@ class AuditLog(SQLModel, table=True):
     confidence:       Optional[float] = None
     duration_ms:      Optional[int]   = None
     timestamp:        datetime        = Field(default_factory=datetime.utcnow)
-    # Provenance
-    query_hash:       Optional[str]   = None
-    chunk_hashes:     Optional[str]   = None
-    answer_hash:      Optional[str]   = None
-    provenance_sig:   Optional[str]   = None
-    # Generation-specific
-    skill_name:       Optional[str]   = None
-    document_id:      Optional[str]   = None
+    # ZettaBrain Verified — cryptographic answer provenance
+    query_hash:       Optional[str]   = None  # SHA-256 of the query
+    chunk_hashes:     Optional[str]   = None  # JSON array of SHA-256 hashes per chunk
+    answer_hash:      Optional[str]   = None  # SHA-256 of the answer
+    provenance_sig:   Optional[str]   = None  # Ed25519 hex signature over the bundle
 
     user: Optional["User"] = Relationship(back_populates="audit_logs")
     team: Optional["Team"] = Relationship(back_populates="audit_logs")
 
 
 # -------------------------------------------------------
-# Generated Documents (from skills engine)
-# -------------------------------------------------------
-class GeneratedDocument(SQLModel, table=True):
-    id:                str             = Field(primary_key=True)
-    team_id:           int             = Field(foreign_key="team.id")
-    user_id:           int             = Field(foreign_key="user.id")
-    skill_name:        str
-    skill_display:     str
-    customer_name:     Optional[str]   = None
-    customer_email:    Optional[str]   = None
-    customer_phone:    Optional[str]   = None
-    request:           str
-    content:           str
-    citations:         Optional[str]   = None  # JSON array
-    generation_time_ms: Optional[int]  = None
-    created_at:        datetime        = Field(default_factory=datetime.utcnow)
-
-
-# -------------------------------------------------------
-# Pydantic schemas
+# Pydantic schemas (not table=True)
 # -------------------------------------------------------
 class UserCreate(SQLModel):
     username: str
@@ -224,23 +198,6 @@ class ChatResponse(SQLModel):
     sources:     List[str]
 
 
-class GenerateRequest(SQLModel):
-    skill_file:     str
-    input_text:     str
-    team_id:        int
-    customer_name:  str = ""
-    customer_email: str = ""
-    customer_phone: str = ""
-
-
-class GenerateResponse(SQLModel):
-    id:                str
-    skill_name:        str
-    content:           str
-    citations:         List[str]
-    generation_time_ms: int
-
-
 class Token(SQLModel):
     access_token:         str
     token_type:           str  = "bearer"
@@ -256,26 +213,26 @@ class ModelRequestCreate(SQLModel):
     llm_model:      Optional[str] = None
     embed_provider: Optional[str] = None
     embed_model:    Optional[str] = None
-    justification:  str = Field(min_length=20)
+    justification:  str           = Field(min_length=20)
 
 
 class ModelRequestRead(SQLModel):
-    id:                 int
-    team_id:            int
-    team_name:          str
-    requester_id:       int
+    id:               int
+    team_id:          int
+    team_name:        str
+    requester_id:     int
     requester_username: str
-    llm_provider:       Optional[str]
-    llm_model:          Optional[str]
-    embed_provider:     Optional[str]
-    embed_model:        Optional[str]
-    justification:      str
-    status:             ModelRequestStatus
-    reviewed_by:        Optional[int]
-    reviewer_username:  Optional[str] = None
-    reviewed_at:        Optional[datetime]
-    rejection_reason:   Optional[str]
-    created_at:         datetime
+    llm_provider:     Optional[str]
+    llm_model:        Optional[str]
+    embed_provider:   Optional[str]
+    embed_model:      Optional[str]
+    justification:    str
+    status:           ModelRequestStatus
+    reviewed_by:      Optional[int]
+    reviewer_username: Optional[str] = None  # Added: username of reviewer
+    reviewed_at:      Optional[datetime]
+    rejection_reason: Optional[str]
+    created_at:       datetime
 
 
 class ModelRequestReject(SQLModel):
@@ -290,11 +247,11 @@ class TeamModelConfig(SQLModel):
 
 
 class TeamModelConfigRead(SQLModel):
-    team_id:         int
-    team_name:       str
-    llm_provider:    str
-    llm_model:       str
-    embed_provider:  str
-    embed_model:     str
-    llm_from_team:   bool
+    team_id:        int
+    team_name:      str
+    llm_provider:   str
+    llm_model:      str
+    embed_provider: str
+    embed_model:    str
+    llm_from_team:  bool
     embed_from_team: bool

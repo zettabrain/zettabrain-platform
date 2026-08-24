@@ -4,987 +4,3555 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ZettaBrain Platform</title>
-<link rel="stylesheet" href="/static/css/app.css">
+<link rel="stylesheet" href="/static/css/main.css">
 </head>
 <body>
 
-<!-- ═══ AUTH VIEW ═══ -->
+<!-- ═══════════════════════════ AUTH VIEW ═══════════════════════════ -->
 <div id="auth-view">
   <div class="auth-card">
     <div class="auth-logo">
-      <svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="14" stroke="#818cf8" stroke-width="2"/><path d="M10 16l4 4 8-8" stroke="#818cf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <span>ZettaBrain</span>
+      <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="32" height="32" rx="8" fill="#818cf8"/>
+        <path d="M8 10h16M8 16h10M8 22h13" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+      </svg>
+      <span>ZettaBrain Platform</span>
     </div>
-    <h2>Sign In</h2>
-    <div class="field"><label>Username</label><input id="auth-user" type="text" autocomplete="username"></div>
-    <div class="field"><label>Password</label><input id="auth-pass" type="password" autocomplete="current-password"></div>
-    <button class="btn btn-primary btn-full" onclick="doLogin()">Sign In</button>
-    <div id="auth-err" class="error-msg"></div>
+    <h2 id="auth-subtitle">Sign in to your workspace</h2>
+    <div class="field">
+      <label>Username</label>
+      <input id="login-user" type="text" autocomplete="username" placeholder="username">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input id="login-pass" type="password" autocomplete="current-password" placeholder="••••••••">
+    </div>
+    <button class="btn btn-primary btn-full" id="login-btn" onclick="doLogin()">Sign In</button>
+    <div class="error-msg" id="login-err"></div>
   </div>
 </div>
 
-<!-- ═══ CHANGE PASSWORD VIEW ═══ -->
-<div id="change-pw-view" class="hidden">
-  <div class="auth-card">
+<!-- ═══════════════════════ CHANGE PASSWORD VIEW ═══════════════════ -->
+<div id="change-pw-view" class="hidden" style="align-items:center; justify-content:center; height:100vh; background:var(--bg);">
+  <div class="auth-card" style="width:400px;">
     <div class="auth-logo">
-      <svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="14" stroke="#818cf8" stroke-width="2"/><path d="M10 16l4 4 8-8" stroke="#818cf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <span>ZettaBrain</span>
+      <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="32" height="32" rx="8" fill="#818cf8"/>
+        <path d="M8 10h16M8 16h10M8 22h13" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+      </svg>
+      <span>ZettaBrain Platform</span>
     </div>
-    <h2>Change Password</h2>
-    <p style="font-size:0.85rem;color:var(--muted);margin-bottom:16px;">You must set a new password before continuing.</p>
-    <div class="field"><label>New Password (min 8 chars)</label><input id="new-pw" type="password" minlength="8"></div>
-    <div class="field"><label>Confirm Password</label><input id="confirm-pw" type="password" minlength="8"></div>
-    <button class="btn btn-primary btn-full" onclick="doChangePw()">Set Password</button>
-    <div id="pw-err" class="error-msg"></div>
+    <h2 style="color:var(--warn); margin-bottom:8px;">Password Change Required</h2>
+    <p style="font-size:0.83rem; color:var(--muted); margin-bottom:20px;">You must set a new password before continuing. Choose something strong.</p>
+    <div class="field">
+      <label>New Password</label>
+      <input id="cpw-new" type="password" placeholder="Min. 8 characters" autocomplete="new-password">
+    </div>
+    <div class="field">
+      <label>Confirm Password</label>
+      <input id="cpw-confirm" type="password" placeholder="Repeat new password" autocomplete="new-password">
+    </div>
+    <button class="btn btn-primary btn-full" id="cpw-btn" onclick="submitChangePassword()">Set New Password</button>
+    <div class="error-msg" id="cpw-err"></div>
   </div>
 </div>
 
-<!-- ═══ APP VIEW ═══ -->
+<!-- ═══════════════════════════ APP VIEW ═══════════════════════════ -->
 <div id="app-view" class="hidden">
-  <!-- Sidebar -->
-  <aside class="sidebar">
+
+  <!-- ── LEFT SIDEBAR ── -->
+  <div class="sidebar" id="main-sidebar">
     <div class="sidebar-logo">
-      <svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="14" stroke="#818cf8" stroke-width="2"/><path d="M10 16l4 4 8-8" stroke="#818cf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <svg viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="8" fill="#818cf8"/><path d="M8 10h16M8 16h10M8 22h13" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg>
       <span>ZettaBrain</span>
     </div>
 
-    <div class="sidebar-section">Teams</div>
-    <div class="sidebar-nav" id="team-list"></div>
+    <!-- Chat sidebar -->
+    <div id="chat-sidebar" class="sidebar-nav">
+      <div class="sidebar-section">Teams</div>
+      <div id="team-list-sidebar"></div>
+      <div class="sidebar-section" style="margin-top:12px;">Mode</div>
+      <button class="nav-item" id="go-admin-btn" onclick="window.location.href='/admin'" style="display:none">
+        <span>⚙️</span> Admin Panel
+      </button>
+      <button class="nav-item" id="go-generate-btn" onclick="showGeneratePortal()">
+        <span>✨</span> Generate
+      </button>
 
-    <!-- Model Request (manager only) -->
-    <div id="model-request-section" class="hidden" style="padding:10px 12px;border-top:1px solid var(--border);">
-      <div class="sidebar-section" style="padding:0 0 6px;">Request Model</div>
-      <div class="field" style="margin-bottom:8px;"><label>LLM Provider</label>
-        <select id="sidebar-llm-provider" style="font-size:0.82rem;padding:6px 10px;" onchange="updateLlmModelDropdown()">
-          <option value="ollama">Ollama</option><option value="openai">OpenAI</option><option value="claude">Claude</option>
-          <option value="groq">Groq</option><option value="together">Together</option><option value="cerebras">Cerebras</option>
-        </select>
+      <!-- Model Request Section (for managers) -->
+      <div id="model-request-section" class="hidden" style="padding:10px 8px;border-top:1px solid var(--border);margin-top:8px;">
+        <div style="font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;padding:0 2px;">🤖 Model Request</div>
+
+        <!-- LLM Provider -->
+        <div class="field" style="margin-bottom:8px;">
+          <label style="font-size:0.7rem;">LLM Provider</label>
+          <select id="sidebar-llm-provider" style="width:100%;padding:6px 8px;font-size:0.8rem;" onchange="updateLlmModelDropdown()">
+            <option value="ollama">Ollama</option>
+            <option value="openai">OpenAI</option>
+            <option value="claude">Claude</option>
+          </select>
+        </div>
+
+        <!-- LLM Model -->
+        <div class="field" style="margin-bottom:8px;">
+          <label style="font-size:0.7rem;">LLM Model</label>
+          <select id="sidebar-llm-model-select" style="width:100%;padding:6px 8px;font-size:0.8rem;" onchange="toggleLlmCustomField()">
+            <!-- Populated by updateLlmModelDropdown() -->
+          </select>
+          <input type="text" id="sidebar-llm-model-custom" placeholder="Enter custom model name" style="width:100%;padding:6px 8px;font-size:0.8rem;margin-top:6px;display:none;">
+        </div>
+
+        <!-- Embed Provider (optional) -->
+        <div class="field" style="margin-bottom:8px;">
+          <label style="font-size:0.7rem;">Embed Provider (optional)</label>
+          <select id="sidebar-embed-provider" style="width:100%;padding:6px 8px;font-size:0.8rem;" onchange="updateEmbedModelDropdown()">
+            <option value="">-- None --</option>
+            <option value="ollama">Ollama</option>
+            <option value="openai">OpenAI</option>
+          </select>
+        </div>
+
+        <!-- Embed Model (conditional) -->
+        <div class="field hidden" id="sidebar-embed-model-field" style="margin-bottom:8px;">
+          <label style="font-size:0.7rem;">Embed Model</label>
+          <select id="sidebar-embed-model-select" style="width:100%;padding:6px 8px;font-size:0.8rem;" onchange="toggleEmbedCustomField()">
+            <!-- Populated by updateEmbedModelDropdown() -->
+          </select>
+          <input type="text" id="sidebar-embed-model-custom" placeholder="Enter custom model name" style="width:100%;padding:6px 8px;font-size:0.8rem;margin-top:6px;display:none;">
+        </div>
+
+        <!-- Justification -->
+        <div class="field" style="margin-bottom:10px;">
+          <label style="font-size:0.7rem;">Justification</label>
+          <textarea id="sidebar-justification" rows="3" placeholder="Why do you need these models? (min 20 chars)" style="width:100%;padding:6px 8px;font-size:0.8rem;resize:vertical;min-height:60px;"></textarea>
+        </div>
+
+        <!-- Submit Button -->
+        <button class="btn btn-primary btn-sm btn-full" onclick="submitModelRequestFromSidebar()">
+          Request Models
+        </button>
+        <div id="sidebar-model-msg" style="font-size:0.7rem;margin-top:6px;min-height:16px;"></div>
       </div>
-      <div class="field" style="margin-bottom:8px;"><label>LLM Model</label>
-        <select id="sidebar-llm-model-select" style="font-size:0.82rem;padding:6px 10px;" onchange="toggleCustomLlmModel()">
-          <option value="custom">Custom...</option>
-        </select>
-        <input id="sidebar-llm-model-custom" type="text" placeholder="model name" style="font-size:0.82rem;padding:6px 10px;margin-top:4px;">
-      </div>
-      <div class="field" style="margin-bottom:8px;"><label>Embed Provider (optional)</label>
-        <select id="sidebar-embed-provider" style="font-size:0.82rem;padding:6px 10px;">
-          <option value="">— keep current —</option><option value="ollama">Ollama</option><option value="openai">OpenAI</option>
-        </select>
-      </div>
-      <div class="field" style="margin-bottom:8px;"><label>Embed Model</label>
-        <input id="sidebar-embed-model-custom" type="text" placeholder="e.g. nomic-embed-text" style="font-size:0.82rem;padding:6px 10px;">
-      </div>
-      <div class="field" style="margin-bottom:8px;"><label>Justification (min 20 chars)</label>
-        <textarea id="sidebar-justification" rows="2" style="font-size:0.82rem;padding:6px 10px;"></textarea>
-      </div>
-      <button class="btn btn-sm btn-primary btn-full" onclick="submitModelRequest()">Submit Request</button>
-      <div id="sidebar-model-msg" style="font-size:0.78rem;margin-top:6px;min-height:16px;"></div>
     </div>
 
-    <!-- Admin nav -->
-    <div id="admin-nav-section" class="hidden" style="border-top:1px solid var(--border);padding:8px;">
-      <div class="sidebar-section" style="padding:4px 4px;">Admin</div>
-      <button class="nav-item" onclick="showAdmin('dashboard')">Dashboard</button>
-      <button class="nav-item" onclick="showAdmin('config')">System Config</button>
-      <button class="nav-item" onclick="showAdmin('users')">Users & LDAP</button>
-      <button class="nav-item" onclick="showAdmin('teams-admin')">Teams & Storage</button>
-      <button class="nav-item" onclick="showAdmin('model-requests')">Model Requests <span id="model-req-badge" class="nav-badge hidden">0</span></button>
-      <button class="nav-item" onclick="showAdmin('audit')">Audit Log</button>
+    <!-- Admin sidebar (hidden when in chat mode) -->
+    <div id="admin-sidebar" class="admin-nav hidden">
+      <div class="sidebar-section">Admin</div>
+      <button class="nav-item" onclick="adminTab('dashboard')">📊 Dashboard</button>
+      <button class="nav-item" onclick="adminTab('license')">🔑 License</button>
+      <button class="nav-item" onclick="adminTab('system')">⚙️ System Config</button>
+      <button class="nav-item" onclick="adminTab('users')">👥 Users &amp; LDAP</button>
+      <button class="nav-item" onclick="adminTab('teams')">🏢 Teams &amp; Storage</button>
+      <button class="nav-item" onclick="adminTab('model-requests')">
+        🤖 Model Requests
+        <span id="model-req-badge" class="nav-badge hidden">0</span>
+      </button>
+      <button class="nav-item" onclick="adminTab('audit')">📋 Audit Log</button>
+      <div style="margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px;">
+        <button class="nav-item" onclick="window.location.href='/'">← Chat Portal</button>
+      </div>
     </div>
 
     <div class="sidebar-footer">
       <div class="user-pill">
-        <div class="user-avatar" id="user-avatar">A</div>
-        <div style="flex:1;min-width:0;">
-          <div class="user-name" id="user-name">admin</div>
-          <div class="user-role" id="user-role-display">Admin</div>
+        <div class="user-avatar" id="user-avatar-initials">?</div>
+        <div style="flex:1; min-width:0;">
+          <div class="user-name" id="user-display-name">...</div>
+          <div class="user-role" id="user-display-role">user</div>
         </div>
-        <button class="btn btn-xs btn-ghost" onclick="doLogout()" title="Sign out">Exit</button>
-      </div>
-    </div>
-  </aside>
-
-  <!-- Main Content -->
-  <div class="main">
-    <!-- Chat Portal -->
-    <div id="chat-portal">
-      <div class="team-info-bar">
-        <span class="team-name" id="active-team-name">Select a team</span>
-        <span class="docs-path" id="active-team-docs"></span>
-        <span class="chunks-count" id="active-team-chunks"></span>
-        <button class="btn btn-xs btn-ghost" id="btn-ingest" onclick="triggerIngest()" style="display:none;">Re-ingest</button>
-        <button class="btn btn-xs btn-ghost" id="btn-upload" onclick="el('upload-input').click()" style="display:none;">Upload</button>
-        <input type="file" id="upload-input" multiple accept=".pdf,.docx,.txt,.md,.doc" style="display:none;" onchange="handleUpload(this.files)">
-        <button class="btn btn-xs btn-primary" id="btn-generate" onclick="showPortal('generate')" style="display:none;">Generate</button>
-      </div>
-      <div class="messages" id="messages">
-        <div style="text-align:center;color:var(--muted);padding:60px 20px;">
-          <p>Select a team from the sidebar to start chatting with your documents.</p>
-        </div>
-      </div>
-      <div class="chat-input-area">
-        <textarea id="chat-input" rows="1" placeholder="Ask a question about your documents..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
-        <button class="btn btn-primary" onclick="sendChat()">Send</button>
-      </div>
-    </div>
-
-    <!-- Generate Portal -->
-    <div id="generate-portal" class="hidden">
-      <div class="team-info-bar">
-        <span class="team-name">Generate Document</span>
-        <button class="btn btn-xs btn-ghost" onclick="showPortal('chat')">Back to Chat</button>
-      </div>
-      <div class="gen-container">
-        <div class="gen-form-area">
-          <div class="field"><label>Skill</label>
-            <select id="gen-skill-select" onchange="showSkillInfo()"></select>
-          </div>
-          <div id="gen-skill-info" style="font-size:0.82rem;color:var(--muted);margin-bottom:12px;"></div>
-          <div class="form-row">
-            <div class="field"><label>Customer Name</label><input id="gen-cust-name" type="text"></div>
-            <div class="field"><label>Email</label><input id="gen-cust-email" type="email"></div>
-            <div class="field"><label>Phone</label><input id="gen-cust-phone" type="tel"></div>
-          </div>
-          <div class="field"><label>Input / Instructions</label><textarea id="gen-input" rows="5" placeholder="Describe what to generate..."></textarea></div>
-          <button class="btn btn-primary" onclick="doGenerate()">Generate</button>
-        </div>
-        <div class="gen-output" id="gen-output">
-          <div class="gen-output-placeholder">Generated content will appear here.</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Admin Portal -->
-    <div id="admin-portal" class="hidden">
-      <div id="admin-content" class="admin-content">
-        <h2>Admin Dashboard</h2>
-        <p style="color:var(--muted);">Loading...</p>
+        <button class="btn btn-ghost btn-xs" onclick="doLogout()">Sign out</button>
       </div>
     </div>
   </div>
+
+  <!-- ── MAIN AREA ── -->
+  <div class="main">
+
+    <!-- CHAT PORTAL -->
+    <div id="chat-portal">
+      <!-- Team info bar -->
+      <div class="team-info-bar" id="team-info-bar">
+        <span class="team-name" id="tib-name">Select a team</span>
+        <span id="tib-docs-display" class="docs-path"></span>
+        <button class="pencil-btn hidden" id="tib-edit-btn" title="Edit docs folder" onclick="togglePathEdit()">✎</button>
+        <div class="edit-path-form hidden" id="tib-edit-form">
+          <input type="text" id="tib-edit-input" placeholder="/path/to/docs">
+          <button class="btn btn-sm btn-primary" onclick="saveDocsPath()">Save</button>
+          <button class="btn btn-sm btn-ghost" onclick="cancelPathEdit()">Cancel</button>
+        </div>
+        <span id="tib-model-info" style="font-size:0.78rem;color:var(--muted);margin-left:8px;" title="Active AI models for this team"></span>
+        <select id="tib-model-selector" class="hidden" style="font-size:0.75rem;padding:4px 8px;margin-left:8px;border-radius:6px;background:var(--surface);border:1px solid var(--border);color:var(--text);" onchange="applyModelConfig()" title="Switch between approved model configurations">
+          <option value="">Loading...</option>
+        </select>
+        <button id="tib-reingest-btn" class="btn btn-sm btn-warn hidden" onclick="reingestFromChat()" style="margin-left:8px;">⚠️ Re-ingest Docs</button>
+        <span class="chunks-count" id="tib-chunks"></span>
+      </div>
+
+      <!-- Messages area -->
+      <div class="messages" id="messages">
+        <div style="text-align:center; color: var(--muted); margin-top: 40px; font-size: 0.9rem;">
+          Select a team from the sidebar to start chatting.
+        </div>
+      </div>
+
+      <!-- Input area -->
+      <div class="chat-input-area">
+        <textarea id="chat-input" rows="1" placeholder="Ask a question…" onkeydown="chatKeydown(event)" oninput="autoResize(this)"></textarea>
+        <button class="btn btn-primary" id="send-btn" onclick="sendChat()">Send</button>
+      </div>
+    </div>
+
+    <!-- ADMIN PORTAL -->
+    <div id="admin-portal" class="hidden">
+      <div class="admin-content" id="admin-content">
+        <!-- filled dynamically -->
+      </div>
+    </div>
+
+    <!-- GENERATE PORTAL -->
+    <div id="generate-portal" class="hidden" style="padding:24px;overflow-y:auto;height:100%;">
+      <div style="max-width:800px;margin:0 auto;">
+        <h2 style="margin-bottom:4px;">Document Generation</h2>
+        <p style="color:var(--muted);font-size:0.85rem;margin-bottom:24px;">Generate documents using AI skills grounded in your team's knowledge base.</p>
+
+        <div class="field" style="margin-bottom:16px;">
+          <label>Team</label>
+          <select id="gen-team-select" style="width:100%;padding:8px 12px;font-size:0.9rem;" onchange="loadSkillsForTeam()">
+            <option value="">Select a team...</option>
+          </select>
+        </div>
+
+        <div class="field" style="margin-bottom:16px;">
+          <label>Skill</label>
+          <select id="gen-skill-select" style="width:100%;padding:8px 12px;font-size:0.9rem;" onchange="onSkillSelect()">
+            <option value="">Select a skill...</option>
+          </select>
+          <div id="gen-skill-desc" style="font-size:0.8rem;color:var(--muted);margin-top:4px;"></div>
+        </div>
+
+        <div class="field" style="margin-bottom:16px;">
+          <label>Input / Instructions</label>
+          <textarea id="gen-input" rows="5" placeholder="Describe what you want to generate..." style="width:100%;padding:10px 12px;font-size:0.9rem;resize:vertical;"></textarea>
+        </div>
+
+        <div style="display:flex;gap:12px;margin-bottom:16px;">
+          <div class="field" style="flex:1;">
+            <label>Temperature</label>
+            <input type="number" id="gen-temp" step="0.1" min="0" max="2" placeholder="0.7 (default)" style="width:100%;padding:8px 12px;">
+          </div>
+          <div class="field" style="flex:1;">
+            <label>Max Tokens</label>
+            <input type="number" id="gen-max-tokens" min="100" max="16000" placeholder="2000 (default)" style="width:100%;padding:8px 12px;">
+          </div>
+        </div>
+
+        <button class="btn btn-primary" id="gen-submit-btn" onclick="submitGeneration()" style="width:100%;padding:12px;font-size:1rem;">
+          Generate Document
+        </button>
+        <div id="gen-status" style="font-size:0.8rem;margin-top:8px;color:var(--muted);"></div>
+
+        <div id="gen-result" class="hidden" style="margin-top:24px;border:1px solid var(--border);border-radius:10px;padding:20px;background:var(--surface);">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h3 style="margin:0;">Generated Document</h3>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-ghost btn-sm" onclick="copyGenResult()">Copy</button>
+              <button class="btn btn-ghost btn-sm" onclick="downloadGenResult()">Download</button>
+            </div>
+          </div>
+          <div id="gen-result-meta" style="font-size:0.75rem;color:var(--muted);margin-bottom:12px;"></div>
+          <div id="gen-result-content" style="white-space:pre-wrap;font-size:0.9rem;line-height:1.6;"></div>
+          <div id="gen-result-citations" class="hidden" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);">
+            <strong style="font-size:0.8rem;">Sources:</strong>
+            <div id="gen-citations-list" style="font-size:0.8rem;color:var(--muted);margin-top:4px;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
 </div>
 
-<!-- Provenance Modal -->
-<div id="prov-modal" class="hidden">
-  <div class="modal-backdrop" onclick="closeProvenanceModal(event)">
-    <div class="modal-card" onclick="event.stopPropagation()">
-      <div class="modal-header">
-        <span class="shield">🛡</span>
-        <h3>ZettaBrain Verified</h3>
-        <button class="btn btn-xs btn-ghost" onclick="closeProvenanceModal()">✕</button>
-      </div>
-      <div class="modal-body" id="prov-modal-body"></div>
-      <div class="modal-footer">
-        <button class="btn btn-sm btn-ghost" onclick="downloadVerificationReport()">Download Report</button>
-        <button class="btn btn-sm btn-primary" onclick="closeProvenanceModal()">Close</button>
-      </div>
+<!-- ── TOAST ── -->
+<div id="toast" class="toast hidden"></div>
+
+<!-- ── PROVENANCE MODAL ── -->
+<div id="prov-modal" class="modal-backdrop hidden" onclick="closeProvenanceModal(event)">
+  <div class="modal-card" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <span class="shield">🛡</span>
+      <h3>ZettaBrain Verified — Answer Provenance</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeProvenanceModal()">✕ Close</button>
+    </div>
+    <div class="modal-body" id="prov-modal-body">
+      <!-- filled by JS -->
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeProvenanceModal()">Close</button>
+      <button class="btn btn-primary" id="prov-download-btn" onclick="downloadVerificationReport()">⬇ Download Report</button>
     </div>
   </div>
 </div>
 
 <script>
-'use strict';
-
 // ═══════════════════════════════════════════════════════════════════
 //  STATE
 // ═══════════════════════════════════════════════════════════════════
 const S = {
-  token: null,
-  user: null,
-  teams: [],
-  activeTeam: null,
-  adminTab: null,
-  portal: 'chat',
-  skills: [],
+  token:         null,
+  user:          null,    // {id, username, email, system_role, is_active}
+  teams:         [],
+  activeTeam:    null,    // full team object
+  activeVecCount: 0,
+  portal:        'chat',  // 'chat' | 'admin'
+  adminTab:      'dashboard',
+  pendingPortal: null,    // set when must_change_password intercepts login
 };
 
-const el = id => document.getElementById(id);
-
-function escHtml(s) {
-  const d = document.createElement('div');
-  d.textContent = s || '';
-  return d.innerHTML;
+// ═══════════════════════════════════════════════════════════════════
+//  PORTAL DETECTION + SESSION RESTORE
+// ═══════════════════════════════════════════════════════════════════
+const _IS_ADMIN_PATH = window.location.pathname.startsWith('/admin');
+if (_IS_ADMIN_PATH) {
+  document.title = 'ZettaBrain — Admin Portal';
+  const sub = document.getElementById('auth-subtitle');
+  if (sub) sub.textContent = 'Admin Portal — Sign In';
 }
 
-// ═══════════════════════════════════════════════════════════════════
-//  API HELPER
-// ═══════════════════════════════════════════════════════════════════
-async function api(method, path, body) {
-  const opts = { method, headers: {} };
-  if (S.token) opts.headers['Authorization'] = `Bearer ${S.token}`;
-  if (body !== undefined) {
-    opts.headers['Content-Type'] = 'application/json';
-    opts.body = JSON.stringify(body);
+function _isTokenExpired(token) {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+    return payload.exp && payload.exp < Date.now() / 1000;
+  } catch(_) { return true; }
+}
+
+async function tryRestoreSession() {
+  const token = localStorage.getItem('zbt_token');
+  if (!token || _isTokenExpired(token)) {
+    localStorage.removeItem('zbt_token');
+    return false;
   }
-  const res = await fetch(path, opts);
-  if (res.status === 401) { doLogout(); throw new Error('Session expired'); }
-  if (res.status === 204) return null;
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+  try {
+    const parts   = token.split('.');
+    const payload = JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/')));
+    S.token = token;
+    S.user  = { id: parseInt(payload.sub), system_role: payload.role };
+    await fetchUserInfo();
+    if (_IS_ADMIN_PATH) {
+      if (S.user.system_role !== 'admin') { window.location.href = '/'; return true; }
+      await initAdminApp();
+    } else {
+      await initChatApp();
+    }
+    return true;
+  } catch(_) {
+    localStorage.removeItem('zbt_token');
+    S.token = null; S.user = null;
+    return false;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  tryRestoreSession();
+
+  // Initialize model dropdowns with default values
+  setTimeout(() => {
+    updateLlmModelDropdown();
+    updateEmbedModelDropdown();
+  }, 100);
+});
+
+// ═══════════════════════════════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════════════════════════════
+function el(id)   { return document.getElementById(id); }
+function show(id) { el(id).classList.remove('hidden'); }
+function hide(id) { el(id).classList.add('hidden'); }
+function toggle(id) {
+  el(id).classList.toggle('hidden');
+}
+
+function toast(msg, type='success') {
+  const t = el('toast');
+  t.textContent = msg;
+  t.className   = `toast ${type}`;
+  t.classList.remove('hidden');
+  setTimeout(() => t.classList.add('hidden'), 3000);
+}
+
+async function api(method, path, body) {
+  const opts = {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+  };
+  if (S.token) opts.headers['Authorization'] = `Bearer ${S.token}`;
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  const r = await fetch(path, opts);
+  if (r.status === 204) return null;
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.detail || r.statusText);
   return data;
 }
 
-function toast(msg, type = 'success') {
-  const t = document.createElement('div');
-  t.className = `toast ${type}`;
-  t.textContent = msg;
-  document.body.appendChild(t);
-  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 3500);
+async function apiForm(path, formData) {
+  const r = await fetch(path, {
+    method: 'POST',
+    body:   formData,
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.detail || r.statusText);
+  return data;
+}
+
+function confBadge(conf) {
+  const pct = Math.round(conf * 100);
+  if (conf >= 0.7)  return `<span class="badge badge-high">Confidence ${pct}%</span>`;
+  if (conf >= 0.45) return `<span class="badge badge-medium">Confidence ${pct}%</span>`;
+  return `<span class="badge badge-low">Confidence ${pct}%</span>`;
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 // ═══════════════════════════════════════════════════════════════════
 //  AUTH
 // ═══════════════════════════════════════════════════════════════════
 async function doLogin() {
-  const username = el('auth-user').value.trim();
-  const password = el('auth-pass').value;
-  el('auth-err').textContent = '';
+  const u = el('login-user').value.trim();
+  const p = el('login-pass').value;
+  el('login-err').textContent = '';
+  el('login-btn').disabled = true;
   try {
-    const body = new URLSearchParams({ username, password });
-    const res = await fetch('/api/auth/token', { method: 'POST', body });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.detail || 'Login failed');
+    const fd = new FormData();
+    fd.append('username', u);
+    fd.append('password', p);
+    const tok = await apiForm('/api/auth/token', fd);
+    S.token = tok.access_token;
+    localStorage.setItem('zbt_token', S.token);
 
-    S.token = data.access_token;
-    sessionStorage.setItem('zbp_token', S.token);
+    const parts   = S.token.split('.');
+    const payload = JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/')));
+    S.user = { id: parseInt(payload.sub), system_role: payload.role };
 
-    if (data.must_change_password) {
-      el('auth-view').classList.add('hidden');
-      el('change-pw-view').classList.remove('hidden');
+    await fetchUserInfo();
+
+    const isAdminPortal = _IS_ADMIN_PATH;
+
+    if (tok.must_change_password) {
+      S.pendingPortal = isAdminPortal ? 'admin' : 'chat';
+      hide('auth-view');
+      show('change-pw-view');
+      el('cpw-new').focus();
+      el('login-btn').disabled = false;
       return;
     }
-    await initApp();
-  } catch (e) {
-    el('auth-err').textContent = e.message;
+
+    if (isAdminPortal) {
+      if (S.user.system_role !== 'admin') {
+        el('login-err').textContent = 'Admin access only. Redirecting to user portal…';
+        setTimeout(() => { window.location.href = '/'; }, 1800);
+        el('login-btn').disabled = false;
+        return;
+      }
+      await initAdminApp();
+    } else {
+      await initChatApp();
+    }
+  } catch(e) {
+    el('login-err').textContent = e.message;
+    el('login-btn').disabled = false;
   }
 }
 
-async function doChangePw() {
-  const pw1 = el('new-pw').value;
-  const pw2 = el('confirm-pw').value;
-  el('pw-err').textContent = '';
-  if (pw1.length < 8) { el('pw-err').textContent = 'Min 8 characters'; return; }
-  if (pw1 !== pw2) { el('pw-err').textContent = 'Passwords do not match'; return; }
+async function fetchUserInfo() {
   try {
-    await api('POST', '/api/auth/change-password', { new_password: pw1 });
-    await initApp();
-  } catch (e) { el('pw-err').textContent = e.message; }
+    const me = await api('GET', '/api/auth/me');
+    S.user = { ...S.user, ...me };
+  } catch(_) {}
 }
 
 function doLogout() {
-  S.token = null; S.user = null;
-  sessionStorage.removeItem('zbp_token');
-  disconnectSSE();
-  el('auth-view').classList.remove('hidden');
-  el('change-pw-view').classList.add('hidden');
-  el('app-view').classList.add('hidden');
+  disconnectSSE(); // Close SSE connection
+  localStorage.removeItem('zbt_token');
+  S.token = null; S.user = null; S.teams = []; S.activeTeam = null; S.pendingPortal = null;
+  hide('app-view'); hide('change-pw-view'); show('auth-view');
+  el('login-pass').value = '';
+  el('login-err').textContent = '';
+  el('login-btn').disabled = false;
+}
+
+el('login-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+el('cpw-confirm').addEventListener('keydown', e => { if (e.key === 'Enter') submitChangePassword(); });
+
+async function submitChangePassword() {
+  const newPw  = el('cpw-new').value;
+  const confirm = el('cpw-confirm').value;
+  const errEl  = el('cpw-err');
+  errEl.textContent = '';
+
+  if (newPw.length < 8) {
+    errEl.textContent = 'Password must be at least 8 characters.';
+    return;
+  }
+  if (newPw !== confirm) {
+    errEl.textContent = 'Passwords do not match.';
+    return;
+  }
+
+  el('cpw-btn').disabled = true;
+  try {
+    await api('POST', '/api/auth/change-password', { new_password: newPw });
+    hide('change-pw-view');
+
+    const portal = S.pendingPortal;
+    S.pendingPortal = null;
+
+    if (portal === 'admin') {
+      if (S.user.system_role !== 'admin') {
+        window.location.href = '/';
+        return;
+      }
+      await initAdminApp();
+    } else {
+      await initChatApp();
+    }
+  } catch(e) {
+    errEl.textContent = e.message;
+    el('cpw-btn').disabled = false;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════════════════════════
-async function initApp() {
-  try {
-    S.user = await api('GET', '/api/auth/me');
-  } catch { doLogout(); return; }
+function _setUserPill() {
+  const initials = (S.user.username || '?').slice(0,2).toUpperCase();
+  el('user-avatar-initials').textContent = initials;
+  el('user-display-name').textContent = S.user.username || S.user.email || 'User';
+  el('user-display-role').textContent = S.user.system_role;
+}
 
-  el('auth-view').classList.add('hidden');
-  el('change-pw-view').classList.add('hidden');
-  el('app-view').classList.remove('hidden');
-
-  el('user-name').textContent = S.user.username;
-  el('user-role-display').textContent = S.user.system_role;
-  el('user-avatar').textContent = S.user.username[0].toUpperCase();
-
-  if (S.user.system_role === 'admin') {
-    el('admin-nav-section').classList.remove('hidden');
-    updateModelRequestBadge();
-  }
-
+async function initChatApp() {
+  hide('auth-view');
+  show('app-view');
+  _setUserPill();
+  if (S.user.system_role === 'admin') show('go-admin-btn');
   await loadTeams();
+  show('chat-sidebar');
+  hide('admin-sidebar');
+  show('chat-portal');
+  hide('admin-portal');
+  updateModelRequestSection();
+  // Connect to real-time notifications (toast only, no list)
+  connectSSE();
+}
+
+async function initAdminApp() {
+  hide('auth-view');
+  show('app-view');
+  _setUserPill();
+  hide('chat-sidebar');
+  show('admin-sidebar');
+  hide('chat-portal');
+  show('admin-portal');
+  updateModelRequestBadge();
+  adminTab('dashboard');
+  // Connect to real-time notifications
   connectSSE();
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  TEAMS
+//  TEAMS (CHAT SIDEBAR)
 // ═══════════════════════════════════════════════════════════════════
 async function loadTeams() {
-  try {
-    S.teams = await api('GET', '/api/teams/');
-  } catch { S.teams = []; }
-  renderTeamList();
-  if (S.teams.length && !S.activeTeam) selectTeam(S.teams[0]);
+  S.teams = await api('GET', '/api/teams/');
+  window._teams = S.teams;
+  renderTeamSidebar();
 }
 
-function renderTeamList() {
-  const container = el('team-list');
+function renderTeamSidebar() {
+  const container = el('team-list-sidebar');
+  if (!S.teams.length) {
+    container.innerHTML = '<div style="padding:8px 10px; color:var(--muted); font-size:0.82rem;">No teams assigned</div>';
+    return;
+  }
   container.innerHTML = S.teams.map(t => `
-    <button class="nav-item ${S.activeTeam && S.activeTeam.id === t.id ? 'active' : ''}" onclick="selectTeam(${JSON.stringify(t).replace(/"/g,'&quot;')})">
-      ${escHtml(t.name)}
+    <button class="nav-item ${S.activeTeam && S.activeTeam.id===t.id ? 'active' : ''}"
+            onclick="selectTeam(${t.id})">
+      <span>🏢</span> ${escHtml(t.name)}
     </button>
   `).join('');
 }
 
-async function selectTeam(team) {
-  S.activeTeam = team;
-  renderTeamList();
-  el('active-team-name').textContent = team.name;
-  el('active-team-docs').textContent = team.docs_folder || '';
-  el('messages').innerHTML = '<div style="text-align:center;color:var(--muted);padding:60px 20px;">Ask a question about this team\'s documents.</div>';
-
-  // Show action buttons for managers/admins
-  const isManagerOrAdmin = S.user.system_role === 'admin';
-  el('btn-ingest').style.display = isManagerOrAdmin ? '' : 'none';
-  el('btn-upload').style.display = isManagerOrAdmin ? '' : 'none';
-  el('btn-generate').style.display = '';
-
-  // Load team stats
-  try {
-    const stats = await api('GET', `/api/teams/${team.id}/stats`);
-    el('active-team-chunks').textContent = stats.vector_docs ? `${stats.vector_docs} chunks` : 'No docs';
-  } catch { el('active-team-chunks').textContent = ''; }
-
-  // Show model request section for managers
+async function selectTeam(teamId) {
+  S.activeTeam = S.teams.find(t => t.id === teamId) || null;
+  if (!S.activeTeam) return;
+  showChatPortal();
+  renderTeamSidebar();
+  updateTeamInfoBar();
   updateModelRequestSection();
-
-  showPortal('chat');
+  el('messages').innerHTML = '';
+  appendSystemMsg(`Switched to team: <strong>${escHtml(S.activeTeam.name)}</strong>. Ask your question below.`);
+  await refreshVecCount();
+  await loadTeamModels();
 }
 
-function updateModelRequestSection() {
+function updateTeamInfoBar() {
+  const t = S.activeTeam;
+  if (!t) return;
+  el('tib-name').textContent = t.name;
+  el('tib-docs-display').textContent = t.docs_folder || '(no docs folder set)';
+  el('tib-chunks').textContent = '';
+  // Show edit button for admins and managers
+  const isAdmin = S.user.system_role === 'admin';
+  // We'll check membership role; for simplicity check admin first
+  if (isAdmin) {
+    show('tib-edit-btn');
+  } else {
+    // Fetch membership to check role
+    checkManagerRole(t.id).then(isMgr => {
+      if (isMgr) {
+        show('tib-edit-btn');
+      } else {
+        hide('tib-edit-btn');
+      }
+    });
+  }
+}
+
+async function checkManagerRole(teamId) {
+  try {
+    const members = await api('GET', `/api/teams/${teamId}/members`);
+    const me = members.find(m => m.user_id === S.user.id);
+    return me && me.team_role === 'manager';
+  } catch(_) { return false; }
+}
+
+// Show model request section for managers
+async function updateModelRequestSection() {
+  const section = el('model-request-section');
+  if (!section) return;
+
+  if (!S.activeTeam) {
+    section.classList.add('hidden');
+    return;
+  }
+
+  const isAdmin = S.user.system_role === 'admin';
+  const isMgr = isAdmin || await checkManagerRole(S.activeTeam.id);
+
+  if (isMgr) {
+    section.classList.remove('hidden');
+  } else {
+    section.classList.add('hidden');
+  }
+}
+
+// Model options per provider
+const MODEL_OPTIONS = {
+  ollama: {
+    llm: [
+      { value: 'llama3.1:8b', label: 'Llama 3.1 8B (Fast, Free)' },
+      { value: 'llama3.1:70b', label: 'Llama 3.1 70B (Best quality, Free)' },
+      { value: 'llama3.2:3b', label: 'Llama 3.2 3B (Lightweight, Free)' },
+      { value: 'gemma2:9b', label: 'Gemma 2 9B (Free)' },
+      { value: 'mistral:7b', label: 'Mistral 7B (Free)' },
+      { value: 'phi3:mini', label: 'Phi-3 Mini (Very fast, Free)' },
+      { value: 'custom', label: 'Custom / Other...' }
+    ],
+    embed: [
+      { value: 'nomic-embed-text', label: 'nomic-embed-text (768d, Free)' },
+      { value: 'mxbai-embed-large', label: 'mxbai-embed-large (1024d, Free)' },
+      { value: 'custom', label: 'Custom / Other...' }
+    ]
+  },
+  openai: {
+    llm: [
+      { value: 'gpt-4o', label: 'GPT-4o (Best quality, $2.50/$10 per 1M)' },
+      { value: 'gpt-4o-mini', label: 'GPT-4o Mini (Fast & cheap, $0.15/$0.60 per 1M)' },
+      { value: 'gpt-4-turbo', label: 'GPT-4 Turbo ($10/$30 per 1M)' },
+      { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo (Cheapest, $0.50/$1.50 per 1M)' },
+      { value: 'custom', label: 'Custom / Other...' }
+    ],
+    embed: [
+      { value: 'text-embedding-3-small', label: 'text-embedding-3-small (1536d, $0.02 per 1M)' },
+      { value: 'text-embedding-3-large', label: 'text-embedding-3-large (3072d, $0.13 per 1M)' },
+      { value: 'text-embedding-ada-002', label: 'text-embedding-ada-002 (1536d, $0.10 per 1M, Legacy)' },
+      { value: 'custom', label: 'Custom / Other...' }
+    ]
+  },
+  claude: {
+    llm: [
+      { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6 (Recommended, $3/$15 per 1M)' },
+      { value: 'claude-opus-4-8', label: 'Claude Opus 4.8 (Most capable, $15/$75 per 1M)' },
+      { value: 'claude-haiku-4-5', label: 'Claude Haiku 4.5 (Fast & cheap, $0.80/$4 per 1M)' },
+      { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet (Legacy, $3/$15 per 1M)' },
+      { value: 'custom', label: 'Custom / Other...' }
+    ],
+    embed: []  // Claude doesn't support embeddings
+  }
+};
+
+// Update LLM model dropdown based on provider
+function updateLlmModelDropdown() {
+  const provider = el('sidebar-llm-provider')?.value || 'ollama';
+  const modelSelect = el('sidebar-llm-model-select');
+  const customInput = el('sidebar-llm-model-custom');
+
+  if (!modelSelect) return;
+
+  const options = MODEL_OPTIONS[provider]?.llm || [];
+  modelSelect.innerHTML = options.map(opt =>
+    `<option value="${escHtml(opt.value)}">${escHtml(opt.label)}</option>`
+  ).join('');
+
+  // Reset custom field
+  if (customInput) {
+    customInput.style.display = 'none';
+    customInput.value = '';
+  }
+}
+
+// Update Embed model dropdown based on provider
+function updateEmbedModelDropdown() {
+  const provider = el('sidebar-embed-provider')?.value;
+  const embedModelField = el('sidebar-embed-model-field');
+  const modelSelect = el('sidebar-embed-model-select');
+  const customInput = el('sidebar-embed-model-custom');
+
+  if (!embedModelField || !modelSelect) return;
+
+  // Show/hide embed model field
+  if (provider && provider.trim() && provider !== '') {
+    embedModelField.classList.remove('hidden');
+
+    const options = MODEL_OPTIONS[provider]?.embed || [];
+    if (options.length === 0) {
+      // Provider doesn't support embeddings (e.g., Claude)
+      modelSelect.innerHTML = '<option value="">Not supported by this provider</option>';
+      modelSelect.disabled = true;
+    } else {
+      modelSelect.disabled = false;
+      modelSelect.innerHTML = options.map(opt =>
+        `<option value="${escHtml(opt.value)}">${escHtml(opt.label)}</option>`
+      ).join('');
+    }
+
+    // Reset custom field
+    if (customInput) {
+      customInput.style.display = 'none';
+      customInput.value = '';
+    }
+  } else {
+    embedModelField.classList.add('hidden');
+  }
+}
+
+// Toggle custom input for LLM model
+function toggleLlmCustomField() {
+  const select = el('sidebar-llm-model-select');
+  const customInput = el('sidebar-llm-model-custom');
+
+  if (select?.value === 'custom') {
+    customInput.style.display = '';
+    customInput.focus();
+  } else {
+    customInput.style.display = 'none';
+    customInput.value = '';
+  }
+}
+
+// Toggle custom input for Embed model
+function toggleEmbedCustomField() {
+  const select = el('sidebar-embed-model-select');
+  const customInput = el('sidebar-embed-model-custom');
+
+  if (select?.value === 'custom') {
+    customInput.style.display = '';
+    customInput.focus();
+  } else {
+    customInput.style.display = 'none';
+    customInput.value = '';
+  }
+}
+
+// Legacy function - kept for backward compatibility
+function toggleEmbedModelField() {
+  updateEmbedModelDropdown();
+}
+
+async function refreshVecCount() {
   if (!S.activeTeam) return;
-  // Show for managers or admins
-  el('model-request-section').classList.remove('hidden');
+  try {
+    const stats = await api('GET', `/api/teams/${S.activeTeam.id}/stats`);
+    S.activeVecCount = stats.vector_docs;
+    el('tib-chunks').textContent = `Chunks: ${stats.vector_docs} documents`;
+
+    // Check if re-ingestion needed (vector store empty but docs folder exists)
+    const isManager = await checkManagerRole(S.activeTeam.id);
+    if (isManager && stats.vector_docs === 0 && S.activeTeam.docs_folder) {
+      // Show re-ingest button if vector store is empty
+      show('tib-reingest-btn');
+    } else if (stats.vector_docs > 0) {
+      // Hide button if vector store has documents
+      hide('tib-reingest-btn');
+    }
+  } catch(_) {
+    el('tib-chunks').textContent = '';
+  }
+}
+
+// Load and display active team models
+async function loadTeamModels() {
+  if (!S.activeTeam) return;
+  try {
+    const config = await api('GET', `/api/teams/${S.activeTeam.id}/models`);
+    const llmStr = `${config.llm_provider}:${config.llm_model}`;
+    const embedStr = `${config.embed_provider}:${config.embed_model}`;
+    const fromTeam = config.llm_from_team || config.embed_from_team;
+    const icon = fromTeam ? '🎯' : '⚙️';
+    const tooltip = fromTeam ? 'Using team-specific models' : 'Using system default models';
+    el('tib-model-info').textContent = `${icon} LLM: ${llmStr} | Embed: ${embedStr}`;
+    el('tib-model-info').title = tooltip;
+
+    // Load model selector for managers
+    await loadModelSelector();
+  } catch(_) {
+    el('tib-model-info').textContent = '';
+  }
+}
+
+// Load approved model configurations into selector
+async function loadModelSelector() {
+  if (!S.activeTeam) return;
+
+  const selector = el('tib-model-selector');
+
+  // Check if user is manager of this team
+  const isManager = await checkManagerRole(S.activeTeam.id);
+  if (!isManager) {
+    hide('tib-model-selector');
+    return;
+  }
+
+  try {
+    // Get all approved requests for this team
+    const requests = await api('GET', `/api/teams/${S.activeTeam.id}/model-requests`);
+    const approved = requests.filter(r => r.status === 'approved');
+
+    if (approved.length === 0) {
+      // No approved configs, hide selector
+      hide('tib-model-selector');
+      return;
+    }
+
+    // Get current team config
+    const currentConfig = await api('GET', `/api/teams/${S.activeTeam.id}/models`);
+    const currentKey = `${currentConfig.llm_provider}:${currentConfig.llm_model}|${currentConfig.embed_provider}:${currentConfig.embed_model}`;
+
+    // Build options
+    const options = approved.map(req => {
+      const llm = req.llm_provider && req.llm_model ? `${req.llm_provider}:${req.llm_model}` : '';
+      const embed = req.embed_provider && req.embed_model ? `${req.embed_provider}:${req.embed_model}` : '';
+      const configKey = `${req.llm_provider}:${req.llm_model}|${req.embed_provider}:${req.embed_model}`;
+
+      const label = llm && embed
+        ? `${llm} + ${embed}`
+        : llm || embed;
+
+      const selected = configKey === currentKey ? ' selected' : '';
+
+      return `<option value="${req.id}"${selected}>${escHtml(label)}</option>`;
+    });
+
+    // Add system default option if no team config
+    if (!currentConfig.llm_from_team && !currentConfig.embed_from_team) {
+      options.unshift(`<option value="" selected>⚙️ System Default</option>`);
+    } else {
+      options.unshift(`<option value="">⚙️ System Default</option>`);
+    }
+
+    selector.innerHTML = options.join('');
+    show('tib-model-selector');
+  } catch(e) {
+    console.error('Failed to load model selector:', e);
+    hide('tib-model-selector');
+  }
+}
+
+// Apply selected model configuration
+async function applyModelConfig() {
+  const selector = el('tib-model-selector');
+  const requestId = selector.value;
+
+  if (!requestId) {
+    // User selected system default - clear team config
+    if (!confirm('Switch to system default models? This will revert to the default configuration.')) {
+      await loadModelSelector(); // Reload to reset selection
+      return;
+    }
+
+    try {
+      await api('DELETE', `/api/admin/teams/${S.activeTeam.id}/models`);
+      toast('Switched to system default models', 'success');
+      await loadTeamModels();
+      await refreshVecCount();
+      hide('tib-reingest-btn');
+    } catch(e) {
+      toast(e.message, 'error');
+      await loadModelSelector(); // Reload to reset selection
+    }
+    return;
+  }
+
+  // Apply the selected approved configuration
+  try {
+    const result = await api('POST', `/api/teams/${S.activeTeam.id}/model-requests/${requestId}/apply`);
+
+    if (result.embed_changed) {
+      // Show prominent warning and re-ingest button
+      const message = '⚠️ EMBEDDING MODEL CHANGED!\n\n' +
+                      'Vector store has been cleared.\n' +
+                      'You MUST re-ingest documents before chat will work.\n\n' +
+                      'Click the "Re-ingest Docs" button to re-index now.';
+      alert(message);
+      toast('⚠️ Click "Re-ingest Docs" button to continue!', 'error');
+
+      // Show re-ingest button
+      show('tib-reingest-btn');
+    } else {
+      toast('Model configuration applied successfully', 'success');
+      hide('tib-reingest-btn');
+    }
+
+    await loadTeamModels();
+    await refreshVecCount();
+  } catch(e) {
+    toast(e.message, 'error');
+    await loadModelSelector(); // Reload to reset selection
+  }
+}
+
+// Re-ingest documents from chat portal
+async function reingestFromChat() {
+  console.log('[INGEST-CHAT] Starting reingest from chat');
+  if (!S.activeTeam) {
+    toast('No team selected', 'error');
+    return;
+  }
+
+  const btn = el('tib-reingest-btn');
+  if (!btn) return;
+
+  const folder = S.activeTeam.docs_folder;
+  if (!folder) {
+    toast('No docs folder configured for this team', 'error');
+    return;
+  }
+
+  if (!confirm(`Re-ingest documents from:\n${folder}\n\nThis may take a few minutes.`)) {
+    console.log('[INGEST-CHAT] User cancelled');
+    return;
+  }
+
+  console.log('[INGEST-CHAT] User confirmed, starting ingestion...');
+
+  // Disable all interactive elements during ingestion
+  const allButtons = document.querySelectorAll('button, input, select, textarea');
+  allButtons.forEach(el => el.disabled = true);
+
+  btn.textContent = 'Ingesting...';
+
+  // Show loading overlay on the main chat area
+  const mainArea = document.querySelector('.main');
+  if (mainArea) {
+    const loadingOverlay = document.createElement('div');
+    loadingOverlay.id = 'chat-ingestion-loading';
+    loadingOverlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;color:white;font-weight:600;z-index:9999;';
+    loadingOverlay.innerHTML = '<div style="text-align:center;"><div style="font-size:1.5rem;margin-bottom:12px;">⏳ Ingesting Documents...</div><div style="font-size:1rem;color:rgba(255,255,255,0.8);">This may take several minutes</div><div style="font-size:0.85rem;color:rgba(255,255,255,0.6);margin-top:8px;">Please do not close this window</div></div>';
+    document.body.appendChild(loadingOverlay);
+  }
+
+  try {
+    console.log('[INGEST-CHAT] Calling API endpoint:', `/api/ingest/${S.activeTeam.id}`);
+    const result = await api('POST', `/api/ingest/${S.activeTeam.id}`, { folder });
+    console.log('[INGEST-CHAT] API response:', result);
+
+    toast('✅ Documents re-ingested successfully!', 'success');
+    hide('tib-reingest-btn');
+
+    // Refresh chunk count
+    await refreshVecCount();
+
+    // Show summary in alert
+    if (result.output) {
+      alert(`✅ Re-ingestion Complete!\n\n${result.output}`);
+    }
+  } catch(e) {
+    console.error('[INGEST-CHAT] Error:', e);
+    toast(e.message, 'error');
+    btn.textContent = '⚠️ Re-ingest Docs';
+  } finally {
+    console.log('[INGEST-CHAT] Cleanup - re-enabling controls');
+    // Re-enable all interactive elements
+    const allButtons = document.querySelectorAll('button, input, select, textarea');
+    allButtons.forEach(el => el.disabled = false);
+
+    // Remove loading overlay
+    const loadingOverlay = document.getElementById('chat-ingestion-loading');
+    if (loadingOverlay) loadingOverlay.remove();
+  }
+}
+
+// Path editing
+function togglePathEdit() {
+  const t = S.activeTeam;
+  if (!t) return;
+  el('tib-edit-input').value = t.docs_folder || '';
+  hide('tib-docs-display');
+  hide('tib-edit-btn');
+  show('tib-edit-form');
+}
+
+function cancelPathEdit() {
+  hide('tib-edit-form');
+  show('tib-docs-display');
+  show('tib-edit-btn');
+}
+
+async function saveDocsPath() {
+  const newPath = el('tib-edit-input').value.trim();
+  try {
+    const updated = await api('PATCH', `/api/teams/${S.activeTeam.id}`, { docs_folder: newPath });
+    S.activeTeam.docs_folder = updated.docs_folder;
+    // update in teams list
+    const idx = S.teams.findIndex(t => t.id === S.activeTeam.id);
+    if (idx !== -1) S.teams[idx] = updated;
+    el('tib-docs-display').textContent = updated.docs_folder || '(none)';
+    cancelPathEdit();
+    toast('Docs folder updated');
+  } catch(e) {
+    toast(e.message, 'error');
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
 //  CHAT
 // ═══════════════════════════════════════════════════════════════════
+function appendSystemMsg(html) {
+  const m = document.createElement('div');
+  m.style.cssText = 'text-align:center; color:var(--muted); font-size:0.82rem; padding:4px 0;';
+  m.innerHTML = html;
+  el('messages').appendChild(m);
+  el('messages').scrollTop = el('messages').scrollHeight;
+}
+
+function appendMsg(role, text, meta) {
+  const wrap = document.createElement('div');
+  wrap.className = `msg ${role}`;
+
+  let metaHtml = '';
+  if (meta) {
+    metaHtml = `<div class="msg-meta">
+      ${confBadge(meta.confidence)}
+      <span class="badge badge-info">${meta.chunks} chunks · ${meta.duration_ms}ms</span>
+      ${(meta.sources||[]).map(s => `<span class="source-chip">${escHtml(s)}</span>`).join('')}
+    </div>`;
+  }
+
+  wrap.innerHTML = `
+    <div class="msg-bubble">${escHtml(text)}</div>
+    ${metaHtml}
+  `;
+  el('messages').appendChild(wrap);
+  el('messages').scrollTop = el('messages').scrollHeight;
+}
+
+function autoResize(ta) {
+  ta.style.height = 'auto';
+  ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
+}
+
+function chatKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendChat();
+  }
+}
+
 async function sendChat() {
-  const input = el('chat-input');
-  const q = input.value.trim();
-  if (!q || !S.activeTeam) return;
-  input.value = '';
-
-  const msgs = el('messages');
-  if (msgs.querySelector('[style*="text-align:center"]')) msgs.innerHTML = '';
-
-  msgs.innerHTML += `<div class="msg user"><div class="msg-bubble">${escHtml(q)}</div></div>`;
-  msgs.innerHTML += `<div class="msg assistant" id="typing"><div class="typing-indicator"><span></span><span></span><span></span></div></div>`;
-  msgs.scrollTop = msgs.scrollHeight;
-
-  try {
-    const r = await api('POST', '/api/chat/', { team_id: S.activeTeam.id, question: q });
-    const typing = el('typing');
-    if (typing) typing.remove();
-
-    const confClass = r.confidence >= 0.7 ? 'badge-high' : r.confidence >= 0.4 ? 'badge-medium' : 'badge-low';
-    const sources = (r.sources || []).map(s => `<span class="source-chip">${escHtml(s)}</span>`).join(' ');
-
-    msgs.innerHTML += `
-      <div class="msg assistant">
-        <div class="msg-bubble">${escHtml(r.answer)}</div>
-        <div class="msg-meta">
-          <span class="badge ${confClass}">${Math.round(r.confidence * 100)}%</span>
-          <span style="font-size:0.72rem;color:var(--muted);">${r.chunks} chunks · ${r.duration_ms}ms</span>
-          ${sources}
-        </div>
-      </div>`;
-    msgs.scrollTop = msgs.scrollHeight;
-  } catch (e) {
-    const typing = el('typing');
-    if (typing) typing.remove();
-    msgs.innerHTML += `<div class="msg assistant"><div class="msg-bubble" style="color:var(--danger);">${escHtml(e.message)}</div></div>`;
-    msgs.scrollTop = msgs.scrollHeight;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-//  INGEST / UPLOAD
-// ═══════════════════════════════════════════════════════════════════
-async function triggerIngest() {
-  if (!S.activeTeam) return;
-  try {
-    const r = await api('POST', `/api/ingest/${S.activeTeam.id}`, {});
-    toast(r.output || 'Ingestion complete');
-    selectTeam(S.activeTeam);
-  } catch (e) { toast(e.message, 'error'); }
-}
-
-async function handleUpload(files) {
-  if (!files.length || !S.activeTeam) return;
-  const formData = new FormData();
-  formData.append('team_id', S.activeTeam.id.toString());
-  for (const f of files) formData.append('files', f);
-
-  try {
-    const res = await fetch('/api/ingest/upload', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${S.token}` },
-      body: formData,
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.detail || 'Upload failed');
-    toast(`Ingested ${data.documents_ingested} file(s), ${data.total_chunks} total chunks`);
-    selectTeam(S.activeTeam);
-  } catch (e) { toast(e.message, 'error'); }
-  el('upload-input').value = '';
-}
-
-// ═══════════════════════════════════════════════════════════════════
-//  GENERATE (SKILLS)
-// ═══════════════════════════════════════════════════════════════════
-async function loadSkills() {
-  try {
-    S.skills = await api('GET', '/api/generate/skills');
-    const sel = el('gen-skill-select');
-    sel.innerHTML = S.skills.map(s => `<option value="${escHtml(s.file)}">${escHtml(s.display_name)}</option>`).join('');
-    showSkillInfo();
-  } catch { S.skills = []; }
-}
-
-function showSkillInfo() {
-  const file = el('gen-skill-select').value;
-  const skill = S.skills.find(s => s.file === file);
-  el('gen-skill-info').textContent = skill ? skill.description || '' : '';
-}
-
-async function doGenerate() {
   if (!S.activeTeam) { toast('Select a team first', 'error'); return; }
-  const skill = el('gen-skill-select').value;
-  const input = el('gen-input').value.trim();
-  if (!input) { toast('Input is required', 'error'); return; }
+  const q = el('chat-input').value.trim();
+  if (!q) return;
 
-  el('gen-output').innerHTML = '<div class="gen-output-placeholder">Generating...</div>';
+  el('chat-input').value = '';
+  el('chat-input').style.height = 'auto';
+  el('send-btn').disabled = true;
+  appendMsg('user', q);
+
+  // Typing indicator
+  const typing = document.createElement('div');
+  typing.className = 'msg assistant';
+  typing.innerHTML = '<div class="msg-bubble"><div class="typing-indicator"><span></span><span></span><span></span></div></div>';
+  el('messages').appendChild(typing);
+  el('messages').scrollTop = el('messages').scrollHeight;
 
   try {
-    const r = await api('POST', '/api/generate/', {
-      skill_file: skill,
-      input_text: input,
-      team_id: S.activeTeam.id,
-      customer_name: el('gen-cust-name').value.trim(),
-      customer_email: el('gen-cust-email').value.trim(),
-      customer_phone: el('gen-cust-phone').value.trim(),
-    });
-    el('gen-output').innerHTML = `<div class="gen-output-content">${escHtml(r.content)}</div>
-      <div style="margin-top:16px;font-size:0.78rem;color:var(--muted);">
-        Skill: ${escHtml(r.skill_name)} · ${r.generation_time_ms}ms
-        ${r.citations && r.citations.length ? '<br>Sources: ' + r.citations.map(c => `<span class="source-chip">${escHtml(c)}</span>`).join(' ') : ''}
-      </div>`;
-  } catch (e) {
-    el('gen-output').innerHTML = `<div class="gen-output-placeholder" style="color:var(--danger);">${escHtml(e.message)}</div>`;
+    const res = await api('POST', '/api/chat/', { question: q, team_id: S.activeTeam.id });
+    typing.remove();
+    appendMsg('assistant', res.answer, { confidence: res.confidence, chunks: res.chunks, duration_ms: res.duration_ms, sources: res.sources });
+  } catch(e) {
+    typing.remove();
+    appendMsg('assistant', `Error: ${e.message}`);
+  } finally {
+    el('send-btn').disabled = false;
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  PORTAL SWITCHING
+//  ADMIN TABS
 // ═══════════════════════════════════════════════════════════════════
-function showPortal(portal) {
-  S.portal = portal;
-  el('chat-portal').classList.toggle('hidden', portal !== 'chat');
-  el('generate-portal').classList.toggle('hidden', portal !== 'generate');
-  el('admin-portal').classList.toggle('hidden', portal !== 'admin');
-  if (portal === 'generate' && !S.skills.length) loadSkills();
-}
-
-// ═══════════════════════════════════════════════════════════════════
-//  ADMIN
-// ═══════════════════════════════════════════════════════════════════
-function showAdmin(tab) {
+function adminTab(tab) {
   S.adminTab = tab;
-  showPortal('admin');
-  if (tab === 'dashboard') loadDashboard();
-  else if (tab === 'config') loadConfig();
-  else if (tab === 'users') loadUsers();
-  else if (tab === 'teams-admin') loadTeamsAdmin();
-  else if (tab === 'model-requests') loadModelRequests();
-  else if (tab === 'audit') loadAudit();
+
+  // Highlight nav
+  document.querySelectorAll('#admin-sidebar .nav-item').forEach((b,i) => {
+    const tabs = ['dashboard','license','system','users','teams','model-requests','audit'];
+    b.classList.toggle('active', tabs[i] === tab);
+  });
+
+  const content = el('admin-content');
+  content.innerHTML = '<div style="color:var(--muted);padding:20px;">Loading…</div>';
+
+  const loaders = {
+    dashboard:       loadDashboard,
+    license:         loadLicense,
+    system:          loadSystemConfig,
+    users:           loadUsers,
+    teams:           loadAdminTeams,
+    'model-requests': loadModelRequests,
+    audit:           loadAudit,
+  };
+  if (loaders[tab]) loaders[tab]();
 }
 
-async function loadDashboard() {
-  el('admin-content').innerHTML = '<h2>Dashboard</h2><p style="color:var(--muted);">Loading...</p>';
+// ── LICENSE ──────────────────────────────────────────────────────
+async function loadLicense() {
+  let lic;
+  try { lic = await api('GET', '/api/admin/license'); }
+  catch(e) { el('admin-content').innerHTML = `<div class="flash flash-err">Failed to load license info.</div>`; return; }
+
+  const STATE_LABEL = {
+    trial_active:     { text: 'Trial Active',      color: 'var(--success)', icon: '✅' },
+    trial_expiring:   { text: 'Trial Expiring',    color: 'var(--warn)',    icon: '⚠️' },
+    trial_expired:    { text: 'Trial Expired',     color: 'var(--danger)',  icon: '🚨' },
+    licensed:         { text: 'Licensed',          color: 'var(--success)', icon: '🔑' },
+    license_expiring: { text: 'Expiring Soon',     color: 'var(--warn)',    icon: '⚠️' },
+    license_grace:    { text: 'Grace Period',      color: 'var(--warn)',    icon: '🟡' },
+    license_expired:  { text: 'License Expired',   color: 'var(--danger)',  icon: '🚨' },
+  };
+  const sl = STATE_LABEL[lic.state] || { text: lic.state, color: 'var(--muted)', icon: 'ℹ️' };
+  const featuresHtml = (lic.features && lic.features.length)
+    ? lic.features.map(f => `<span style="background:rgba(129,140,248,.15);color:var(--accent2);padding:2px 8px;border-radius:99px;font-size:0.78rem;">${f}</span>`).join(' ')
+    : '<span style="color:var(--muted)">—</span>';
+
+  el('admin-content').innerHTML = `
+    <h2>License</h2>
+    <div class="info-card">
+      <h3>Current Status</h3>
+      <div class="info-row">
+        <span class="label">State</span>
+        <span style="color:${sl.color};font-weight:600;">${sl.icon} ${sl.text}</span>
+      </div>
+      <div class="info-row"><span class="label">Plan</span><span style="text-transform:uppercase;font-weight:600;">${lic.plan || '—'}</span></div>
+      ${lic.licensed ? `
+      <div class="info-row"><span class="label">Customer</span><span>${escHtml(lic.customer || '—')}</span></div>
+      <div class="info-row"><span class="label">Email</span><span>${escHtml(lic.email || '—')}</span></div>
+      <div class="info-row"><span class="label">License ID</span><code style="font-size:0.78rem;color:var(--muted)">${escHtml(lic.license_id || '—')}</code></div>
+      <div class="info-row"><span class="label">Issued</span><span>${lic.issued_at || '—'}</span></div>
+      ` : ''}
+      <div class="info-row"><span class="label">Expires</span><span>${lic.expires_at || 'Perpetual'}</span></div>
+      ${lic.days_left != null ? `<div class="info-row"><span class="label">Days Left</span><span style="color:${sl.color};font-weight:600;">${lic.days_left}</span></div>` : ''}
+      <div class="info-row"><span class="label">Max Users</span><span>${lic.max_users != null ? lic.max_users : 'Unlimited'}</span></div>
+      <div class="info-row"><span class="label">Max Teams</span><span>${lic.max_teams != null ? lic.max_teams : 'Unlimited'}</span></div>
+      <div class="info-row"><span class="label">Features</span><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:2px;">${featuresHtml}</div></div>
+    </div>
+
+    <div class="info-card">
+      <h3>Upload License Key</h3>
+      <p style="color:var(--muted);font-size:0.85rem;margin-bottom:12px;">
+        Paste the license key string below, or upload the <code>.lic</code> file.
+        Alternatively, place the file at <code>DATA_DIR/license.lic</code> and restart the server.
+      </p>
+      <textarea id="lic-key-input" rows="4"
+        style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);
+               color:var(--text);font-family:monospace;font-size:0.78rem;padding:10px;resize:vertical;"
+        placeholder="Paste base64 license key here…"></textarea>
+      <div style="display:flex;gap:10px;margin-top:10px;align-items:center;">
+        <label class="btn btn-secondary btn-sm" style="cursor:pointer;">
+          📂 Upload .lic file
+          <input type="file" accept=".lic" style="display:none" onchange="licFileSelected(event)">
+        </label>
+        <button class="btn btn-primary btn-sm" onclick="submitLicenseKey()">Activate License</button>
+        <span id="lic-result" style="font-size:0.85rem;"></span>
+      </div>
+    </div>
+
+    ${!lic.licensed ? `
+    <div class="info-card" style="border-color:rgba(129,140,248,.3);">
+      <h3>Upgrade to a Full License</h3>
+      <p style="color:var(--muted);font-size:0.85rem;">
+        Your trial ${lic.days_left != null && lic.days_left > 0 ? `has <strong style="color:var(--text)">${lic.days_left} days remaining</strong>` : 'has expired'}.
+        Contact <a href="mailto:sales@zettabrain.io" style="color:var(--accent2)">sales@zettabrain.io</a>
+        to purchase a Starter, Business, or Enterprise license.
+      </p>
+    </div>` : ''}
+  `;
+}
+
+async function submitLicenseKey() {
+  const key = (document.getElementById('lic-key-input').value || '').trim();
+  if (!key) { document.getElementById('lic-result').innerHTML = '<span style="color:var(--danger)">Please enter a license key.</span>'; return; }
   try {
-    const [stats, health] = await Promise.all([
+    await api('POST', '/api/admin/license', { key });
+    document.getElementById('lic-result').innerHTML = '<span style="color:var(--success)">✅ License activated!</span>';
+    setTimeout(() => loadLicense(), 1200);
+  } catch(e) {
+    document.getElementById('lic-result').innerHTML = `<span style="color:var(--danger)">❌ ${e.message || 'Invalid license key'}</span>`;
+  }
+}
+
+function licFileSelected(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => { document.getElementById('lic-key-input').value = (e.target.result || '').trim(); };
+  reader.readAsText(file);
+}
+
+// ── DASHBOARD ────────────────────────────────────────────────────
+async function loadDashboard() {
+  let stats, health;
+  try {
+    [stats, health] = await Promise.all([
       api('GET', '/api/admin/stats'),
       api('GET', '/api/admin/health'),
     ]);
+  } catch(e) {
+    el('admin-content').innerHTML = `<div class="error-msg">Failed to load: ${e.message}</div>`;
+    return;
+  }
 
-    const ollamaStatus = health.ollama?.ok ? '<span class="dot dot-green"></span>Connected' : '<span class="dot dot-red"></span>Offline';
-    const openaiStatus = health.openai?.ok ? '<span class="dot dot-green"></span>Connected' : '<span class="dot dot-red"></span>Not configured';
-    const claudeStatus = health.claude?.ok ? '<span class="dot dot-green"></span>Connected' : '<span class="dot dot-red"></span>Not configured';
+  const diskPct = health.disk.total_bytes ? Math.round(health.disk.used_bytes / health.disk.total_bytes * 100) : 0;
+  const ollamaOk = health.ollama.ok;
 
-    let cloudHtml = '';
-    if (health.cloud_providers) {
-      cloudHtml = Object.entries(health.cloud_providers).map(([name, info]) =>
-        `<div class="info-row"><span class="label">${name}</span><span>${info.ok ? '<span class="dot dot-green"></span>OK' : info.key_set ? '<span class="dot dot-red"></span>Error' : '<span class="dot dot-red"></span>No key'}</span></div>`
-      ).join('');
-    }
+  const teamsRows = (health.teams || []).map(t => `
+    <tr>
+      <td>${escHtml(t.team_name)}</td>
+      <td><code style="font-size:0.78rem;color:var(--muted)">${escHtml(t.docs_folder || '—')}</code></td>
+      <td>${t.vector_docs}</td>
+      <td><button class="btn btn-danger btn-xs" onclick="adminClearVecStore(${t.team_id}, '${escHtml(t.team_name)}')">Clear</button></td>
+    </tr>
+  `).join('');
 
-    const teamsHtml = (health.teams || []).map(t =>
-      `<tr><td>${escHtml(t.team_name)}</td><td>${escHtml(t.team_slug)}</td><td>${t.vector_docs}</td></tr>`
-    ).join('');
-
-    el('admin-content').innerHTML = `
-      <h2>Dashboard</h2>
-      <div class="stat-grid">
-        <div class="stat-card"><div class="stat-label">Users</div><div class="stat-value">${stats.users}</div></div>
-        <div class="stat-card"><div class="stat-label">Teams</div><div class="stat-value">${stats.teams}</div></div>
-        <div class="stat-card"><div class="stat-label">Total Queries</div><div class="stat-value">${stats.total_queries}</div></div>
-        <div class="stat-card"><div class="stat-label">Avg Confidence</div><div class="stat-value">${Math.round((stats.avg_confidence || 0) * 100)}%</div></div>
+  const daysLeft    = stats.days_left ?? null;
+  const expiresAt   = stats.expires_at ?? '';
+  const licensed    = stats.licensed ?? false;
+  const plan        = stats.plan ?? 'trial';
+  const licState    = stats.license_state ?? '';
+  const isTrial     = !licensed;
+  const trialTotal  = 90;
+  const trialPct    = (isTrial && daysLeft != null) ? Math.max(0, Math.round((daysLeft / trialTotal) * 100)) : 100;
+  const urgentColor = daysLeft != null && daysLeft <= 7  ? 'var(--danger)'
+                    : daysLeft != null && daysLeft <= 14 ? 'var(--warn)'
+                    : daysLeft != null && daysLeft <= 30 ? 'var(--warn)'
+                    : 'var(--success)';
+  const urgentBanner = (daysLeft != null && (
+    (isTrial && daysLeft <= 14) ||
+    (!isTrial && daysLeft <= 30)
+  )) ? `
+    <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;margin-bottom:18px;
+                background:${daysLeft<=7?'rgba(239,68,68,.1)':'rgba(245,158,11,.1)'};
+                border:1px solid ${daysLeft<=7?'rgba(239,68,68,.4)':'rgba(245,158,11,.4)'};
+                border-radius:var(--radius);color:${urgentColor};">
+      <span style="font-size:1.3rem;">${daysLeft<=7?'🚨':'⚠️'}</span>
+      <div>
+        <strong>${daysLeft} day${daysLeft===1?'':'s'} left ${isTrial?'in your trial':'on your license'}</strong>
+        — expires ${expiresAt}.
+        <a href="mailto:sales@zettabrain.io" style="color:inherit;text-decoration:underline;margin-left:6px;">
+          Contact sales to ${isTrial?'upgrade':'renew'} →
+        </a>
       </div>
+    </div>` : '';
 
-      <div class="info-card">
-        <h3>Provider Status</h3>
-        <div class="info-row"><span class="label">Ollama</span><span>${ollamaStatus}</span></div>
-        <div class="info-row"><span class="label">OpenAI</span><span>${openaiStatus}</span></div>
-        <div class="info-row"><span class="label">Claude</span><span>${claudeStatus}</span></div>
-        ${cloudHtml}
-      </div>
+  const maxUsersLabel = stats.max_users != null ? `/ ${stats.max_users}` : '';
+  const maxTeamsLabel = stats.max_teams != null ? `/ ${stats.max_teams}` : '';
 
-      <div class="info-card">
-        <h3>Team Vector Stores</h3>
-        <div class="tbl-wrap"><table>
-          <thead><tr><th>Team</th><th>Slug</th><th>Chunks</th></tr></thead>
-          <tbody>${teamsHtml || '<tr><td colspan="3" style="color:var(--muted);">No teams</td></tr>'}</tbody>
-        </table></div>
+  el('admin-content').innerHTML = `
+    <h2>Dashboard</h2>
+    ${urgentBanner}
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-label">Users</div><div class="stat-value">${stats.users}${maxUsersLabel}</div></div>
+      <div class="stat-card"><div class="stat-label">Teams</div><div class="stat-value">${stats.teams}${maxTeamsLabel}</div></div>
+      <div class="stat-card"><div class="stat-label">Total Queries</div><div class="stat-value">${stats.total_queries}</div></div>
+      <div class="stat-card"><div class="stat-label">Avg Confidence</div><div class="stat-value">${Math.round((stats.avg_confidence||0)*100)}%</div></div>
+      ${daysLeft != null ? `
+      <div class="stat-card">
+        <div class="stat-label">${isTrial ? 'Trial Days Left' : 'License Days Left'}</div>
+        <div class="stat-value" style="color:${urgentColor};">${daysLeft}</div>
+        ${isTrial ? `<div style="margin-top:8px;background:var(--bg);border-radius:99px;height:5px;overflow:hidden;">
+          <div style="width:${trialPct}%;height:100%;background:${urgentColor};border-radius:99px;transition:width .5s;"></div>
+        </div>` : ''}
+        <div style="font-size:0.7rem;color:var(--muted);margin-top:4px;">Expires ${expiresAt}</div>
+      </div>` : `
+      <div class="stat-card">
+        <div class="stat-label">License</div>
+        <div class="stat-value" style="font-size:1.1rem;color:var(--success);">${plan.toUpperCase()}</div>
+        <div style="font-size:0.7rem;color:var(--muted);margin-top:4px;">${stats.customer || 'Perpetual'}</div>
+      </div>`}
+    </div>
+
+    <div class="info-card">
+      <h3>Provider Status</h3>
+      <div class="info-row">
+        <span class="label">🏠 Ollama</span>
+        <span><span class="dot ${ollamaOk?'dot-green':'dot-red'}"></span>${ollamaOk?'Connected':'Unreachable'}</span>
       </div>
-    `;
-  } catch (e) { el('admin-content').innerHTML = `<h2>Dashboard</h2><div class="error-msg">${e.message}</div>`; }
+      ${ollamaOk ? `
+      <div class="info-row"><span class="label">Host</span><code style="font-size:0.82rem">${escHtml(health.ollama.host)}</code></div>
+      <div class="info-row"><span class="label">LLM Model</span><span>${escHtml(health.ollama.llm_model)}</span></div>
+      <div class="info-row"><span class="label">Embed Model</span><span>${escHtml(health.ollama.embed_model)}</span></div>
+      <div class="info-row">
+        <span class="label">Downloaded Models</span>
+        <div class="model-tags">${(health.ollama.models||[]).map(m => `<span class="model-tag">${escHtml(m)}</span>`).join('') || '<span style="color:var(--muted)">none</span>'}</div>
+      </div>` : ''}
+      ${health.openai ? `
+      <div class="info-row" style="margin-top:12px;">
+        <span class="label">☁️ OpenAI</span>
+        <span><span class="dot ${health.openai.ok?'dot-green':'dot-red'}"></span>${health.openai.ok?'Connected':'Not configured'}</span>
+      </div>
+      ${health.openai.ok && health.openai.models ? `
+      <div class="info-row">
+        <span class="label">Available Models</span>
+        <div class="model-tags">${(health.openai.models||[]).slice(0,5).map(m => `<span class="model-tag">${escHtml(m)}</span>`).join('')}${(health.openai.models||[]).length>5?`<span style="color:var(--muted);font-size:0.75rem;margin-left:6px;">+${(health.openai.models||[]).length-5} more</span>`:''}</div>
+      </div>` : ''}` : ''}
+      ${health.claude ? `
+      <div class="info-row" style="margin-top:12px;">
+        <span class="label">☁️ Claude</span>
+        <span><span class="dot ${health.claude.ok?'dot-green':'dot-red'}"></span>${health.claude.ok?'Connected':'Not configured'}</span>
+      </div>` : ''}
+    </div>
+
+    <div class="info-card">
+      <h3>Disk Usage</h3>
+      <div class="info-row"><span class="label">Used</span><span>${health.disk.used_gb} GB of ${health.disk.total_gb} GB</span></div>
+      <div class="disk-bar-wrap"><div class="disk-bar-fill" style="width:${diskPct}%"></div></div>
+      <div style="font-size:0.75rem;color:var(--muted);text-align:right;">${diskPct}%</div>
+    </div>
+
+    <div class="info-card">
+      <h3>Team Vector Stores</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Team</th><th>Docs Folder</th><th>Vector Docs</th><th>Actions</th></tr></thead>
+          <tbody>${teamsRows || '<tr><td colspan="4" style="color:var(--muted)">No teams</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
 }
 
-async function loadConfig() {
-  el('admin-content').innerHTML = '<h2>System Config</h2><p style="color:var(--muted);">Loading...</p>';
+async function adminClearVecStore(teamId, teamName) {
+  if (!confirm(`Clear vector store for team "${teamName}"? This cannot be undone.`)) return;
   try {
-    const settings = await api('GET', '/api/admin/settings');
-    const keys = Object.keys(settings);
-    const fields = keys.map(k => {
-      const isSensitive = k.includes('api_key') || k.includes('password');
-      const type = isSensitive ? 'password' : 'text';
-      return `<div class="field"><label>${escHtml(k)}</label><input id="cfg-${k}" type="${type}" value="${escHtml(settings[k])}"></div>`;
-    }).join('');
-
-    el('admin-content').innerHTML = `
-      <h2>System Config</h2>
-      <div class="form-section">${fields}
-        <button class="btn btn-primary" onclick="saveConfig()">Save Settings</button>
-        <span id="cfg-msg" style="margin-left:12px;font-size:0.82rem;"></span>
-      </div>
-    `;
-  } catch (e) { el('admin-content').innerHTML = `<h2>System Config</h2><div class="error-msg">${e.message}</div>`; }
+    await api('DELETE', `/api/admin/vectorstore/${teamId}`);
+    toast(`Vector store cleared for ${teamName}`);
+    loadDashboard();
+  } catch(e) { toast(e.message, 'error'); }
 }
 
-async function saveConfig() {
-  const inputs = el('admin-content').querySelectorAll('[id^="cfg-"]');
-  const body = {};
-  inputs.forEach(inp => {
-    if (inp.id === 'cfg-msg') return;
-    const key = inp.id.replace('cfg-', '');
-    body[key] = inp.value;
-  });
+async function deleteTeam(teamId, teamName) {
+  if (!confirm(`Delete team "${teamName}"? This removes all members and cannot be undone.`)) return;
   try {
-    await api('PUT', '/api/admin/settings', body);
-    el('cfg-msg').style.color = 'var(--success)';
-    el('cfg-msg').textContent = 'Saved!';
-    setTimeout(() => { if (el('cfg-msg')) el('cfg-msg').textContent = ''; }, 2000);
-  } catch (e) {
-    el('cfg-msg').style.color = 'var(--danger)';
-    el('cfg-msg').textContent = e.message;
+    await api('DELETE', `/api/teams/${teamId}`);
+    toast(`Team "${teamName}" deleted`);
+    loadAdminTeams();
+    loadTeams();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function ingestTeam(teamId, teamName) {
+  const folder = el(`tcard-docs-${teamId}`)?.value.trim();
+  const statusEl = el(`ingest-status-${teamId}`);
+  const btn = el(`ingest-btn-${teamId}`);
+  if (!folder) {
+    toast('Set a docs folder path first', 'error');
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = 'Ingesting…';
+  if (statusEl) statusEl.textContent = 'Ingestion in progress — this may take a while…';
+  try {
+    const res = await api('POST', `/api/ingest/${teamId}`, { folder });
+    toast(`Ingest complete for "${teamName}"`);
+    if (statusEl) statusEl.textContent = `Ingest complete. ${res.output ? res.output.split('\n').pop() : ''}`;
+    loadAdminTeams();
+  } catch(e) {
+    toast(e.message, 'error');
+    if (statusEl) statusEl.textContent = `Error: ${e.message}`;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Ingest Docs'; }
   }
 }
 
-async function loadUsers() {
-  el('admin-content').innerHTML = '<h2>Users & LDAP</h2><p style="color:var(--muted);">Loading...</p>';
-  try {
-    const users = await api('GET', '/api/admin/users');
-    const rows = users.map(u => `
-      <tr>
-        <td>${escHtml(u.username)}</td>
-        <td>${escHtml(u.email)}</td>
-        <td><span class="badge badge-info">${u.system_role}</span></td>
-        <td>${u.is_active ? '<span class="dot dot-green"></span>Active' : '<span class="dot dot-red"></span>Disabled'}</td>
-        <td class="actions">
-          <button class="btn btn-xs ${u.is_active ? 'btn-warn' : 'btn-success'}"
-                  onclick="toggleUser(${u.id}, ${!u.is_active})">${u.is_active ? 'Disable' : 'Enable'}</button>
-          <button class="btn btn-xs btn-danger" onclick="deleteUser(${u.id}, '${escHtml(u.username)}')">Delete</button>
-        </td>
-      </tr>`).join('');
+// ── SYSTEM CONFIG ─────────────────────────────────────────────────
+function _buildModelOptions(installedModels, currentVal) {
+  const opts = [];
+  // Installed models first (from Ollama)
+  installedModels.forEach(m => {
+    const sel = m === currentVal ? ' selected' : '';
+    opts.push(`<option value="${escHtml(m)}"${sel}>${escHtml(m)}</option>`);
+  });
+  // If current configured value isn't installed, still show it
+  if (currentVal && !installedModels.includes(currentVal)) {
+    opts.unshift(`<option value="${escHtml(currentVal)}" selected>${escHtml(currentVal)} (configured)</option>`);
+  }
+  if (!installedModels.length) {
+    opts.unshift(`<option value="" disabled>No models installed — pull one via Ollama</option>`);
+  }
+  opts.push(`<option value="custom">Custom (type below)…</option>`);
+  return opts.join('');
+}
 
-    el('admin-content').innerHTML = `
-      <h2>Users & LDAP</h2>
-      <div class="form-section">
-        <h3>Create User</h3>
-        <div class="form-row">
-          <div class="field"><label>Username</label><input id="new-user-name" type="text"></div>
-          <div class="field"><label>Email</label><input id="new-user-email" type="email"></div>
-          <div class="field"><label>Password</label><input id="new-user-pw" type="password"></div>
+async function loadSystemConfig() {
+  let settings, health;
+  try {
+    [settings, health] = await Promise.all([
+      api('GET', '/api/admin/settings'),
+      api('GET', '/api/admin/health'),
+    ]);
+  } catch(e) {
+    el('admin-content').innerHTML = `<div class="error-msg">${e.message}</div>`;
+    return;
+  }
+
+  const installedModels = (health.ollama && health.ollama.models) ? health.ollama.models : [];
+  const ollamaOk        = health.ollama && health.ollama.ok;
+  const openaiOk        = health.openai && health.openai.ok;
+  const claudeOk        = health.claude && health.claude.ok;
+  const ldapEnabled     = settings.ldap_enabled === 'true';
+
+  const llmProvider     = settings.llm_provider || 'ollama';
+  const embedProvider   = settings.embed_provider || 'ollama';
+
+  // Store current embed provider for change detection
+  S._currentEmbedProvider = embedProvider;
+
+  const llmOpts   = _buildModelOptions(installedModels, settings.llm_model   || '');
+  const embedOpts = _buildModelOptions(installedModels, settings.embed_model || '');
+
+  el('admin-content').innerHTML = `
+    <h2>System Config</h2>
+
+    <!-- LLM Provider Selection -->
+    <div class="form-section">
+      <h3>🤖 LLM Provider</h3>
+      <p style="font-size:0.85rem;color:var(--muted);margin-bottom:14px;">
+        Choose your language model provider. Cloud providers require API keys and charge per token.
+      </p>
+      <div class="form-row">
+        <div class="field">
+          <label>LLM Provider</label>
+          <select id="cfg-llm-provider" onchange="toggleProviderPanels()">
+            <option value="ollama" ${llmProvider==='ollama'?'selected':''}>Ollama (Self-hosted)</option>
+            <option value="openai" ${llmProvider==='openai'?'selected':''}>OpenAI (Cloud)</option>
+            <option value="claude" ${llmProvider==='claude'?'selected':''}>Claude / Anthropic (Cloud)</option>
+          </select>
+          <small style="font-size:0.75rem;color:var(--muted);display:block;margin-top:4px;">
+            The language model used for generating answers
+          </small>
         </div>
-        <button class="btn btn-sm btn-primary" onclick="createUser()">Create User</button>
-        <span id="user-msg" style="margin-left:12px;font-size:0.82rem;"></span>
+        <div class="field">
+          <label>Embedding Provider</label>
+          <select id="cfg-embed-provider" onchange="toggleProviderPanels()">
+            <option value="ollama" ${embedProvider==='ollama'?'selected':''}>Ollama (Self-hosted)</option>
+            <option value="openai" ${embedProvider==='openai'?'selected':''}>OpenAI (Cloud)</option>
+          </select>
+          <small style="font-size:0.75rem;color:var(--muted);display:block;margin-top:4px;">
+            Used for document search. Can be different from LLM provider.
+          </small>
+        </div>
       </div>
-      <div class="info-card">
-        <h3>All Users (${users.length})</h3>
-        <div class="tbl-wrap"><table>
-          <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table></div>
+    </div>
+
+    <!-- Ollama Config Panel -->
+    <div class="form-section" id="ollama-config-panel">
+      <h3>Ollama Settings</h3>
+      ${!ollamaOk ? `<div style="color:var(--warn);font-size:0.82rem;margin-bottom:10px;">⚠ Ollama unreachable — showing configured values only. Fix the host URL and save to refresh the model list.</div>` : `<div style="color:var(--success);font-size:0.82rem;margin-bottom:10px;">✓ Ollama connected — ${installedModels.length} model(s) installed</div>`}
+      <div class="field">
+        <label>Ollama Host URL</label>
+        <input type="text" id="cfg-ollama-host" value="${escHtml(settings.ollama_host||'')}">
       </div>
-    `;
-  } catch (e) { el('admin-content').innerHTML = `<h2>Users</h2><div class="error-msg">${e.message}</div>`; }
+      <div class="form-row">
+        <div class="field">
+          <label>LLM Model</label>
+          <select id="cfg-llm-model-sel" onchange="onModelSel('cfg-llm-model','cfg-llm-model-sel')">${llmOpts}</select>
+          <input type="text" id="cfg-llm-model" style="margin-top:6px;display:none" placeholder="e.g. phi3:mini">
+        </div>
+        <div class="field">
+          <label>Embed Model</label>
+          <select id="cfg-embed-model-sel" onchange="onModelSel('cfg-embed-model','cfg-embed-model-sel')">${embedOpts}</select>
+          <input type="text" id="cfg-embed-model" style="margin-top:6px;display:none" placeholder="e.g. nomic-embed-text">
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px;">
+        <button class="btn btn-ghost btn-sm" onclick="testOllamaConnection()">Test Connection</button>
+        <span id="cfg-test-result" style="font-size:0.82rem;"></span>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+          <input type="text" id="cfg-pull-model" placeholder="Pull new model (e.g. gemma2:9b)" style="padding:5px 10px;font-size:0.82rem;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);width:240px;">
+          <button class="btn btn-ghost btn-sm" onclick="pullOllamaModel()">Pull Model</button>
+          <span id="cfg-pull-result" style="font-size:0.82rem;"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- OpenAI Config Panel -->
+    <div class="form-section" id="openai-config-panel" style="display:none;">
+      <h3>OpenAI Settings</h3>
+      ${openaiOk ? `<div style="color:var(--success);font-size:0.82rem;margin-bottom:10px;">✓ OpenAI connected — API key valid</div>` : `<div style="color:var(--warn);font-size:0.82rem;margin-bottom:10px;">⚠ OpenAI not configured or API key invalid</div>`}
+      <div style="padding:12px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:var(--radius);margin-bottom:14px;">
+        <div style="display:flex;align-items:start;gap:10px;">
+          <span style="font-size:1.2rem;">⚠️</span>
+          <div style="font-size:0.85rem;">
+            <strong>Cost Warning:</strong> OpenAI charges per token (~$0.15-$10 per 1M tokens depending on model).
+            Monitor usage in the Audit Log. Get API keys from
+            <a href="https://platform.openai.com/api-keys" target="_blank" style="color:var(--accent2);">OpenAI Platform</a>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label>OpenAI API Key</label>
+        <input type="password" id="cfg-openai-api-key" value="${escHtml(settings.openai_api_key||'')}" placeholder="sk-proj-...">
+        <small style="font-size:0.75rem;color:var(--muted);display:block;margin-top:4px;">
+          Your API key is encrypted and never logged
+        </small>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label>LLM Model</label>
+          <select id="cfg-openai-llm-model">
+            <option value="gpt-4o" ${(settings.openai_llm_model||'gpt-4o')==='gpt-4o'?'selected':''}>GPT-4o (Best quality, $2.50/$10 per 1M)</option>
+            <option value="gpt-4o-mini" ${settings.openai_llm_model==='gpt-4o-mini'?'selected':''}>GPT-4o Mini (Fast &amp; cheap, $0.15/$0.60 per 1M)</option>
+            <option value="gpt-4-turbo" ${settings.openai_llm_model==='gpt-4-turbo'?'selected':''}>GPT-4 Turbo ($10/$30 per 1M)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Embedding Model</label>
+          <select id="cfg-openai-embed-model">
+            <option value="text-embedding-3-small" ${(settings.openai_embed_model||'text-embedding-3-small')==='text-embedding-3-small'?'selected':''}>text-embedding-3-small ($0.02 per 1M)</option>
+            <option value="text-embedding-3-large" ${settings.openai_embed_model==='text-embedding-3-large'?'selected':''}>text-embedding-3-large ($0.13 per 1M)</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="testOpenAIConnection()">Test OpenAI Connection</button>
+      <span id="cfg-openai-test-result" style="font-size:0.82rem;margin-left:8px;"></span>
+    </div>
+
+    <!-- Claude Config Panel -->
+    <div class="form-section" id="claude-config-panel" style="display:none;">
+      <h3>Claude Settings</h3>
+      ${claudeOk ? `<div style="color:var(--success);font-size:0.82rem;margin-bottom:10px;">✓ Claude connected — API key valid</div>` : `<div style="color:var(--warn);font-size:0.82rem;margin-bottom:10px;">⚠ Claude not configured or API key invalid</div>`}
+      <div style="padding:12px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:var(--radius);margin-bottom:14px;">
+        <div style="display:flex;align-items:start;gap:10px;">
+          <span style="font-size:1.2rem;">⚠️</span>
+          <div style="font-size:0.85rem;">
+            <strong>Cost Warning:</strong> Anthropic charges per token (~$0.80-$15 per 1M tokens depending on model).
+            Monitor usage in the Audit Log. Get API keys from
+            <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--accent2);">Anthropic Console</a>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Anthropic API Key</label>
+        <input type="password" id="cfg-anthropic-api-key" value="${escHtml(settings.anthropic_api_key||'')}" placeholder="sk-ant-...">
+        <small style="font-size:0.75rem;color:var(--muted);display:block;margin-top:4px;">
+          Your API key is encrypted and never logged
+        </small>
+      </div>
+      <div class="field">
+        <label>Claude Model</label>
+        <select id="cfg-claude-llm-model">
+          <option value="claude-sonnet-4-6" ${(settings.claude_llm_model||'claude-sonnet-4-6')==='claude-sonnet-4-6'?'selected':''}>Claude Sonnet 4.6 (Recommended, $3/$15 per 1M)</option>
+          <option value="claude-opus-4-8" ${settings.claude_llm_model==='claude-opus-4-8'?'selected':''}>Claude Opus 4.8 (Most capable, $15/$75 per 1M)</option>
+          <option value="claude-haiku-4-5" ${settings.claude_llm_model==='claude-haiku-4-5'?'selected':''}>Claude Haiku 4.5 (Fast & cheap, $0.80/$4 per 1M)</option>
+        </select>
+        <small style="font-size:0.75rem;color:var(--muted);display:block;margin-top:4px;">
+          Note: Claude 3.x models are deprecated. Use Claude 4.x for best results.
+        </small>
+      </div>
+      <div style="padding:10px;background:rgba(129,140,248,.1);border:1px solid rgba(129,140,248,.3);border-radius:var(--radius);font-size:0.82rem;">
+        <strong>ℹ️ Note:</strong> Claude does not support embeddings. Use OpenAI or Ollama for embedding provider.
+      </div>
+      <button class="btn btn-ghost btn-sm" style="margin-top:10px;" onclick="testClaudeConnection()">Test Claude Connection</button>
+      <span id="cfg-claude-test-result" style="font-size:0.82rem;margin-left:8px;"></span>
+    </div>
+
+    <div class="form-section">
+      <h3>Active Directory / LDAP Authentication</h3>
+      <div class="toggle-wrap" style="margin-bottom:14px;">
+        <label class="toggle">
+          <input type="checkbox" id="cfg-ldap-enabled" ${ldapEnabled?'checked':''} onchange="toggleLdapSection()">
+          <span class="toggle-slider"></span>
+        </label>
+        <span style="font-size:0.875rem;">Enable Active Directory / LDAP Authentication</span>
+      </div>
+      <div id="ldap-fields" style="${ldapEnabled?'':'display:none'}">
+        <div style="background:var(--bg-alt);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:0.8rem;color:var(--text-muted);margin-bottom:14px;">
+          AD users are authenticated via LDAP bind. On first successful login they are auto-provisioned as local users.
+          Local admin accounts always authenticate locally regardless of this setting.
+        </div>
+        <div style="background:var(--bg-alt);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:16px;">
+          <strong style="font-size:0.82rem;">Quick Fill from Domain</strong>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap;">
+            <input type="text" id="qf-domain" placeholder="acme.com" style="padding:5px 10px;font-size:0.82rem;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);width:180px;">
+            <input type="text" id="qf-dc" placeholder="DC hostname (optional, e.g. dc01.acme.com)" style="padding:5px 10px;font-size:0.82rem;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);flex:1;min-width:220px;">
+            <button class="btn btn-ghost btn-sm" onclick="quickFillAd()">Fill Fields</button>
+          </div>
+          <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Fills LDAP URL, Base DN, Filter, and attributes with correct AD defaults for your domain.</div>
+        </div>
+        <div class="form-row">
+          <div class="field">
+            <label>AD/LDAP Server URL</label>
+            <input type="text" id="cfg-ldap-url" value="${escHtml(settings.ldap_url||'')}" placeholder="ldap://dc01.domain.com  or  ldaps://dc01.domain.com:636">
+          </div>
+          <div class="field">
+            <label>Service Account (Bind DN)</label>
+            <input type="text" id="cfg-ldap-bind-dn" value="${escHtml(settings.ldap_bind_dn||'')}" placeholder="svc-zettabrain@domain.com">
+          </div>
+        </div>
+        <div class="field">
+          <label>Service Account Password</label>
+          <input type="password" id="cfg-ldap-bind-pw" value="${escHtml(settings.ldap_bind_password||'')}" placeholder="Enter new password to update">
+        </div>
+        <div class="form-row">
+          <div class="field">
+            <label>User Search Base DN</label>
+            <input type="text" id="cfg-ldap-user-base" value="${escHtml(settings.ldap_user_base||'')}" placeholder="DC=domain,DC=com">
+          </div>
+          <div class="field">
+            <label>User Search Filter</label>
+            <input type="text" id="cfg-ldap-user-filter" value="${escHtml(settings.ldap_user_filter||'')}" placeholder="(&(objectClass=user)(sAMAccountName={username}))">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field">
+            <label>Username Attribute</label>
+            <input type="text" id="cfg-ldap-username-attr" value="${escHtml(settings.ldap_username_attr||'sAMAccountName')}" placeholder="sAMAccountName">
+          </div>
+          <div class="field">
+            <label>Email Attribute</label>
+            <input type="text" id="cfg-ldap-email-attr" value="${escHtml(settings.ldap_email_attr||'mail')}" placeholder="mail">
+          </div>
+        </div>
+        <div class="field">
+          <label>Required AD Group DN <span style="font-weight:400;color:var(--text-muted)">(optional — leave blank to allow all AD users)</span></label>
+          <input type="text" id="cfg-ldap-require-group" value="${escHtml(settings.ldap_require_group||'')}" placeholder="CN=ZettaBrain-Users,OU=Groups,DC=domain,DC=com">
+        </div>
+        <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <button class="btn btn-ghost btn-sm" onclick="testAdConnection()">Test AD Connection</button>
+          <span id="cfg-ldap-test-msg" style="font-size:0.82rem;"></span>
+        </div>
+        <div id="cfg-ldap-test-detail" style="display:none;margin-top:10px;background:var(--bg-alt);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:0.82rem;"></div>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" onclick="saveSystemConfig()">Save Settings</button>
+    <span id="cfg-save-msg" style="font-size:0.85rem; margin-left:10px;"></span>
+  `;
+
+  setModelSel('cfg-llm-model-sel',   'cfg-llm-model',   settings.llm_model   || 'llama3.1:8b');
+  setModelSel('cfg-embed-model-sel', 'cfg-embed-model', settings.embed_model || 'nomic-embed-text');
+
+  // Show/hide provider panels based on current selection
+  setTimeout(() => toggleProviderPanels(), 0);
+}
+
+function onModelSel(inputId, selId) {
+  const sel = el(selId);
+  const inp = el(inputId);
+  if (sel.value === 'custom') {
+    inp.style.display = '';
+    inp.value = '';
+    inp.focus();
+  } else {
+    inp.style.display = 'none';
+    inp.value = sel.value;
+  }
+}
+
+function setModelSel(selId, inputId, value) {
+  const sel  = el(selId);
+  const inp  = el(inputId);
+  const vals = Array.from(sel.options).map(o => o.value);
+  if (vals.includes(value)) {
+    sel.value          = value;
+    inp.style.display  = 'none';
+    inp.value          = value;
+  } else {
+    sel.value          = 'custom';
+    inp.style.display  = '';
+    inp.value          = value || '';
+  }
+}
+
+function getModelVal(selId, inputId) {
+  const sel = el(selId);
+  return sel.value === 'custom' ? el(inputId).value.trim() : sel.value;
+}
+
+function toggleLdapSection() {
+  const enabled = el('cfg-ldap-enabled').checked;
+  el('ldap-fields').style.display = enabled ? '' : 'none';
+}
+
+async function testOllamaConnection() {
+  const host = el('cfg-ollama-host').value.trim();
+  const res  = el('cfg-test-result');
+  res.textContent = 'Testing…';
+  try {
+    const h = await api('GET', '/api/admin/health');
+    if (h.ollama.ok) {
+      res.style.color = 'var(--success)';
+      res.textContent = 'Connected';
+    } else {
+      res.style.color = 'var(--danger)';
+      res.textContent = 'Unreachable';
+    }
+  } catch(e) {
+    res.style.color = 'var(--danger)';
+    res.textContent = e.message;
+  }
+}
+
+async function testAdConnection() {
+  const msg    = el('cfg-ldap-test-msg');
+  const detail = el('cfg-ldap-test-detail');
+  msg.textContent = 'Testing…';
+  msg.style.color = 'var(--text-muted)';
+  detail.style.display = 'none';
+
+  const body = {
+    ldap_url:       el('cfg-ldap-url')            ? el('cfg-ldap-url').value.trim()             : '',
+    bind_dn:        el('cfg-ldap-bind-dn')         ? el('cfg-ldap-bind-dn').value.trim()         : '',
+    bind_password:  el('cfg-ldap-bind-pw')         ? el('cfg-ldap-bind-pw').value                : '',
+    user_base:      el('cfg-ldap-user-base')       ? el('cfg-ldap-user-base').value.trim()       : '',
+    user_filter:    el('cfg-ldap-user-filter')     ? el('cfg-ldap-user-filter').value.trim()     : '',
+    username_attr:  el('cfg-ldap-username-attr')   ? el('cfg-ldap-username-attr').value.trim()   : 'sAMAccountName',
+    email_attr:     el('cfg-ldap-email-attr')      ? el('cfg-ldap-email-attr').value.trim()      : 'mail',
+    require_group:  el('cfg-ldap-require-group')   ? el('cfg-ldap-require-group').value.trim()   : '',
+  };
+
+  try {
+    const r = await api('POST', '/api/admin/ldap/test', body);
+    if (r.ok) {
+      msg.style.color = 'var(--success)';
+      msg.textContent = '✓ ' + r.message;
+    } else {
+      msg.style.color = r.stage === 'bind' ? 'var(--danger)' : 'var(--warn)';
+      msg.textContent = (r.stage === 'bind' ? '✗ ' : '⚠ ') + r.message;
+    }
+
+    let html = '';
+
+    // If a working filter was found, show an Apply button
+    if (r.working_filter) {
+      const suggestedFilter = r.working_filter.replace('*', '{username}');
+      const suggestedBase   = r.working_base || '';
+      html += `<div style="margin-bottom:10px;padding:8px 12px;border:1px solid var(--warn);border-radius:6px;background:var(--bg);">
+        <strong>Working configuration found:</strong><br>
+        ${suggestedBase ? `<div style="margin-top:4px;font-size:0.82rem;">Base DN: <code>${escHtml(suggestedBase)}</code></div>` : ''}
+        <div style="margin-top:4px;font-size:0.82rem;">Filter: <code>${escHtml(suggestedFilter)}</code></div>
+        <button class="btn btn-sm btn-primary" style="margin-top:8px;"
+          onclick="applyWorkingFilter('${escHtml(suggestedFilter)}', '${escHtml(suggestedBase)}')">
+          Apply &amp; Save Settings
+        </button>
+      </div>`;
+    }
+
+    // Sample users
+    if (r.sample_users && r.sample_users.length) {
+      html += `<strong>Sample AD users found:</strong>` +
+        r.sample_users.map(u =>
+          `<div style="margin-top:5px;padding:4px 8px;background:var(--bg);border-radius:4px;">
+            <strong>${escHtml(u.display_name)}</strong>
+            <span style="color:var(--text-muted);margin-left:8px;">${escHtml(u.username)}</span>
+            ${u.email ? `<span style="color:var(--text-muted);margin-left:8px;">${escHtml(u.email)}</span>` : ''}
+          </div>`
+        ).join('');
+    }
+
+    // Diagnostics table
+    if (r.diagnostics && r.diagnostics.length) {
+      html += `<div style="margin-top:10px;"><strong>Filter diagnostics:</strong>
+        <table style="width:100%;margin-top:6px;font-size:0.78rem;border-collapse:collapse;">
+          <thead><tr>
+            <th style="text-align:left;padding:3px 6px;border-bottom:1px solid var(--border);">Filter</th>
+            <th style="text-align:left;padding:3px 6px;border-bottom:1px solid var(--border);">Description</th>
+            <th style="text-align:center;padding:3px 6px;border-bottom:1px solid var(--border);">Results</th>
+          </tr></thead><tbody>` +
+        r.diagnostics.map(d => `<tr>
+          <td style="padding:3px 6px;font-family:monospace;font-size:0.75rem;color:var(--text-muted);">${escHtml(d.filter)}</td>
+          <td style="padding:3px 6px;">${escHtml(d.label)}</td>
+          <td style="padding:3px 6px;text-align:center;color:${d.found ? 'var(--success)' : 'var(--text-muted)'};">
+            ${d.found ? `✓ ${d.found}` : (d.error ? '⚠ error' : '0')}
+          </td>
+        </tr>`).join('') +
+        `</tbody></table></div>`;
+    }
+
+    if (html) {
+      detail.style.display = '';
+      detail.innerHTML = html;
+    }
+  } catch(e) {
+    msg.style.color = 'var(--danger)';
+    msg.textContent = '✗ ' + e.message;
+  }
+}
+
+async function applyWorkingFilter(filter, baseDn) {
+  if (el('cfg-ldap-user-filter')) el('cfg-ldap-user-filter').value = filter;
+  if (baseDn && el('cfg-ldap-user-base')) el('cfg-ldap-user-base').value = baseDn;
+  // Save immediately so login and search use the updated values
+  await saveSystemConfig();
+  toast('Filter and Base DN saved');
+}
+
+function quickFillAd() {
+  const domain = el('qf-domain').value.trim().toLowerCase().replace(/^ldaps?:\/\//, '');
+  const dc     = el('qf-dc').value.trim();
+  if (!domain) { toast('Enter a domain name first', 'error'); return; }
+
+  // Convert acme.com → DC=acme,DC=com
+  const baseDn = domain.split('.').map(p => `DC=${p}`).join(',');
+  const ldapUrl = dc ? `ldap://${dc}` : `ldap://${domain}`;
+
+  if (el('cfg-ldap-url'))           el('cfg-ldap-url').value           = ldapUrl;
+  if (el('cfg-ldap-user-base'))     el('cfg-ldap-user-base').value     = baseDn;
+  if (el('cfg-ldap-user-filter'))   el('cfg-ldap-user-filter').value   = '(&(objectClass=user)(sAMAccountName={username}))';
+  if (el('cfg-ldap-username-attr')) el('cfg-ldap-username-attr').value = 'sAMAccountName';
+  if (el('cfg-ldap-email-attr'))    el('cfg-ldap-email-attr').value    = 'mail';
+
+  toast(`Filled for ${domain} — enter your service account and password, then click Test AD Connection`);
+}
+
+async function pullOllamaModel() {
+  const input  = el('cfg-pull-model');
+  const result = el('cfg-pull-result');
+  const model  = input.value.trim();
+  if (!model) { result.style.color = 'var(--danger)'; result.textContent = 'Enter a model name'; return; }
+  result.style.color = 'var(--text-muted)';
+  result.textContent = `Pulling ${model}… (this may take several minutes for large models)`;
+  try {
+    const r = await api('POST', '/api/admin/pull-model', { model });
+    result.style.color = 'var(--success)';
+    result.textContent = `Done — ${r.model} (${r.status})`;
+    input.value = '';
+    // Reload model dropdowns so the new model appears
+    await loadSystemConfig();
+  } catch(e) {
+    result.style.color = 'var(--danger)';
+    result.textContent = e.message;
+  }
+}
+
+async function saveSystemConfig() {
+  const newEmbedProvider = el('cfg-embed-provider').value;
+
+  // Check if embedding provider changed
+  if (S._currentEmbedProvider && S._currentEmbedProvider !== newEmbedProvider) {
+    const confirmed = confirm(
+      `⚠️ WARNING: You are changing the Embedding Provider from "${S._currentEmbedProvider}" to "${newEmbedProvider}".\n\n` +
+      `Different embedding providers use different vector dimensions:\n` +
+      `• Ollama (nomic-embed-text): 768 dimensions\n` +
+      `• OpenAI (text-embedding-3-small): 1536 dimensions\n` +
+      `• OpenAI (text-embedding-3-large): 3072 dimensions\n\n` +
+      `❌ Existing vector stores are INCOMPATIBLE with the new embedding provider.\n\n` +
+      `You MUST re-ingest all documents after saving:\n` +
+      `1. Go to Admin → Teams & Storage\n` +
+      `2. For each team: Clear Vector Store + Ingest Docs\n\n` +
+      `Otherwise, you will get "dimension mismatch" errors when querying.\n\n` +
+      `Do you want to continue?`
+    );
+
+    if (!confirmed) {
+      return; // User cancelled
+    }
+  }
+
+  const body = {
+    // Provider selection
+    llm_provider:        el('cfg-llm-provider').value,
+    embed_provider:      newEmbedProvider,
+
+    // Ollama settings
+    ollama_host:         el('cfg-ollama-host').value.trim(),
+    llm_model:           getModelVal('cfg-llm-model-sel', 'cfg-llm-model'),
+    embed_model:         getModelVal('cfg-embed-model-sel', 'cfg-embed-model'),
+
+    // OpenAI settings
+    openai_api_key:      el('cfg-openai-api-key') ? el('cfg-openai-api-key').value : '',
+    openai_llm_model:    el('cfg-openai-llm-model') ? el('cfg-openai-llm-model').value : '',
+    openai_embed_model:  el('cfg-openai-embed-model') ? el('cfg-openai-embed-model').value : '',
+
+    // Claude settings
+    anthropic_api_key:   el('cfg-anthropic-api-key') ? el('cfg-anthropic-api-key').value : '',
+    claude_llm_model:    el('cfg-claude-llm-model') ? el('cfg-claude-llm-model').value : '',
+
+    // LDAP settings
+    ldap_enabled:        el('cfg-ldap-enabled').checked ? 'true' : 'false',
+    ldap_url:            el('cfg-ldap-url')             ? el('cfg-ldap-url').value.trim()             : '',
+    ldap_bind_dn:        el('cfg-ldap-bind-dn')         ? el('cfg-ldap-bind-dn').value.trim()         : '',
+    ldap_bind_password:  el('cfg-ldap-bind-pw')         ? el('cfg-ldap-bind-pw').value                : '',
+    ldap_user_base:      el('cfg-ldap-user-base')       ? el('cfg-ldap-user-base').value.trim()       : '',
+    ldap_user_filter:    el('cfg-ldap-user-filter')     ? el('cfg-ldap-user-filter').value.trim()     : '',
+    ldap_require_group:  el('cfg-ldap-require-group')   ? el('cfg-ldap-require-group').value.trim()   : '',
+    ldap_username_attr:  el('cfg-ldap-username-attr')   ? el('cfg-ldap-username-attr').value.trim()   : '',
+    ldap_email_attr:     el('cfg-ldap-email-attr')      ? el('cfg-ldap-email-attr').value.trim()      : '',
+  };
+  const msg = el('cfg-save-msg');
+  try {
+    await api('PUT', '/api/admin/settings', body);
+    msg.style.color = 'var(--success)';
+    msg.textContent = 'Saved successfully';
+    toast('Settings saved');
+
+    // Update current embed provider for future change detection
+    S._currentEmbedProvider = newEmbedProvider;
+  } catch(e) {
+    msg.style.color = 'var(--danger)';
+    msg.textContent = e.message;
+  }
+}
+
+function toggleProviderPanels() {
+  const llmProv = el('cfg-llm-provider').value;
+  const embedProv = el('cfg-embed-provider').value;
+
+  // Show/hide panels based on what's selected
+  const showOllama = llmProv === 'ollama' || embedProv === 'ollama';
+  const showOpenAI = llmProv === 'openai' || embedProv === 'openai';
+  const showClaude = llmProv === 'claude';
+
+  el('ollama-config-panel').style.display = showOllama ? '' : 'none';
+  el('openai-config-panel').style.display = showOpenAI ? '' : 'none';
+  el('claude-config-panel').style.display = showClaude ? '' : 'none';
+}
+
+async function testOpenAIConnection() {
+  const result = el('cfg-openai-test-result');
+  result.textContent = 'Testing…';
+  result.style.color = 'var(--muted)';
+
+  // First, save the current API key to database
+  const apiKey = el('cfg-openai-api-key')?.value || '';
+  if (!apiKey || !apiKey.trim()) {
+    result.style.color = 'var(--danger)';
+    result.textContent = '✗ Please enter an API key first';
+    return;
+  }
+
+  try {
+    // Save just the OpenAI API key (minimal save)
+    await api('PUT', '/api/admin/settings', {
+      openai_api_key: apiKey
+    });
+
+    // Now test the connection (health endpoint reads from database)
+    const h = await api('GET', '/api/admin/health');
+    if (h.openai && h.openai.ok) {
+      result.style.color = 'var(--success)';
+      result.textContent = `✓ Connected — ${(h.openai.models||[]).length} models available`;
+    } else {
+      result.style.color = 'var(--danger)';
+      result.textContent = '✗ Connection failed or API key invalid';
+    }
+  } catch(e) {
+    result.style.color = 'var(--danger)';
+    result.textContent = '✗ ' + e.message;
+  }
+}
+
+async function testClaudeConnection() {
+  const result = el('cfg-claude-test-result');
+  result.textContent = 'Testing…';
+  result.style.color = 'var(--muted)';
+
+  // First, save the current API key to database
+  const apiKey = el('cfg-anthropic-api-key')?.value || '';
+  if (!apiKey || !apiKey.trim()) {
+    result.style.color = 'var(--danger)';
+    result.textContent = '✗ Please enter an API key first';
+    return;
+  }
+
+  try {
+    // Save just the Anthropic API key (minimal save)
+    await api('PUT', '/api/admin/settings', {
+      anthropic_api_key: apiKey
+    });
+
+    // Now test the connection (health endpoint reads from database)
+    const h = await api('GET', '/api/admin/health');
+    if (h.claude && h.claude.ok) {
+      result.style.color = 'var(--success)';
+      result.textContent = '✓ Connected — API key valid';
+    } else {
+      result.style.color = 'var(--danger)';
+      result.textContent = '✗ Connection failed or API key invalid';
+    }
+  } catch(e) {
+    result.style.color = 'var(--danger)';
+    result.textContent = '✗ ' + e.message;
+  }
+}
+
+// ── USERS ─────────────────────────────────────────────────────────
+async function loadUsers() {
+  let users;
+  try { users = await api('GET', '/api/admin/users'); }
+  catch(e) { el('admin-content').innerHTML = `<div class="error-msg">${e.message}</div>`; return; }
+
+  // Get all teams for cross-reference
+  let teams = [];
+  try { teams = await api('GET', '/api/teams/'); } catch(_) {}
+
+  // Get memberships for each user
+  let membershipMap = {};
+  for (const u of users) {
+    membershipMap[u.id] = [];
+  }
+  for (const t of teams) {
+    try {
+      const members = await api('GET', `/api/teams/${t.id}/members`);
+      for (const m of members) {
+        if (membershipMap[m.user_id]) {
+          membershipMap[m.user_id].push(t.name);
+        }
+      }
+    } catch(_) {}
+  }
+
+  const rows = users.map(u => `
+    <tr>
+      <td>${escHtml(u.username)}</td>
+      <td>${escHtml(u.email)}</td>
+      <td><span class="role-badge ${u.system_role==='admin'?'role-manager':'role-member'}">${u.system_role}</span></td>
+      <td><span class="badge ${u.is_active?'badge-high':'badge-low'}">${u.is_active?'Active':'Disabled'}</span></td>
+      <td style="font-size:0.78rem;color:var(--muted);">${(membershipMap[u.id]||[]).join(', ') || '—'}</td>
+      <td class="actions">
+        <button class="btn btn-sm ${u.is_active?'btn-danger':'btn-success'}"
+                onclick="toggleUserActive(${u.id}, ${!u.is_active})">
+          ${u.is_active?'Disable':'Enable'}
+        </button>
+        <button class="btn btn-sm btn-danger"
+                onclick="deleteUser(${u.id}, '${escHtml(u.username)}')"
+                ${u.id === S.user?.id ? 'disabled title="Cannot delete your own account"' : ''}>
+          Delete
+        </button>
+      </td>
+    </tr>
+  `).join('');
+
+  el('admin-content').innerHTML = `
+    <h2>Users &amp; LDAP</h2>
+    <div class="form-section" style="margin-bottom:24px;">
+      <h3>Create User</h3>
+      <div class="form-row">
+        <div class="field"><label>Username</label><input type="text" id="nu-user" placeholder="username"></div>
+        <div class="field"><label>Email</label><input type="email" id="nu-email" placeholder="user@example.com"></div>
+        <div class="field"><label>Password</label><input type="password" id="nu-pass" placeholder="••••••••"></div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="createUser()">Create User</button>
+      <span id="nu-msg" style="font-size:0.82rem;margin-left:8px;"></span>
+    </div>
+
+    <div class="info-card">
+      <h3>All Users</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Teams</th><th>Actions</th></tr></thead>
+          <tbody id="users-tbody">${rows}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
 }
 
 async function createUser() {
-  const username = el('new-user-name').value.trim();
-  const email = el('new-user-email').value.trim();
-  const password = el('new-user-pw').value;
-  try {
-    await api('POST', '/api/admin/users', { username, email, password });
-    toast('User created');
-    loadUsers();
-  } catch (e) {
-    el('user-msg').style.color = 'var(--danger)';
-    el('user-msg').textContent = e.message;
-  }
-}
+  const u   = el('nu-user').value.trim();
+  const e   = el('nu-email').value.trim();
+  const p   = el('nu-pass').value;
+  const msg = el('nu-msg');
+  msg.textContent = '';
 
-async function toggleUser(userId, active) {
-  try { await api('PATCH', `/api/admin/users/${userId}/active?active=${active}`); loadUsers(); }
-  catch (e) { toast(e.message, 'error'); }
+  if (!u) { msg.style.color='var(--danger)'; msg.textContent='Username is required'; return; }
+  if (!e) { msg.style.color='var(--danger)'; msg.textContent='Email is required'; return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) { msg.style.color='var(--danger)'; msg.textContent='Invalid email address'; return; }
+  if (p.length < 8) { msg.style.color='var(--danger)'; msg.textContent='Password must be at least 8 characters'; return; }
+
+  try {
+    await api('POST', '/api/admin/users', { username: u, email: e, password: p });
+    msg.style.color = 'var(--success)';
+    msg.textContent = `User "${u}" created`;
+    toast(`User "${u}" created`);
+    el('nu-user').value = '';
+    el('nu-email').value = '';
+    el('nu-pass').value = '';
+    loadUsers();
+  } catch(err) {
+    msg.style.color = 'var(--danger)';
+    msg.textContent = err.message;
+  }
 }
 
 async function deleteUser(userId, username) {
   if (!confirm(`Delete user "${username}"? This cannot be undone.`)) return;
-  try { await api('DELETE', `/api/admin/users/${userId}`); toast('User deleted'); loadUsers(); }
-  catch (e) { toast(e.message, 'error'); }
-}
-
-async function loadTeamsAdmin() {
-  el('admin-content').innerHTML = '<h2>Teams & Storage</h2><p style="color:var(--muted);">Loading...</p>';
   try {
-    const teams = await api('GET', '/api/teams/');
-    const cards = teams.map(t => `
-      <div class="team-card">
-        <div class="team-card-header"><h4>${escHtml(t.name)}</h4><span style="font-size:0.75rem;color:var(--muted);">${escHtml(t.slug)}</span></div>
-        <div class="team-card-body">
-          <p style="font-size:0.82rem;color:var(--muted);margin-bottom:8px;">Docs: ${escHtml(t.docs_folder || 'Not set')}</p>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;">
-            <button class="btn btn-xs btn-ghost" onclick="adminIngest(${t.id})">Ingest</button>
-            <button class="btn btn-xs btn-danger" onclick="clearVectorStore(${t.id}, '${escHtml(t.name)}')">Clear Vector Store</button>
-            <button class="btn btn-xs btn-danger" onclick="deleteTeamAdmin(${t.id}, '${escHtml(t.name)}')">Delete Team</button>
-          </div>
-          <div id="team-members-${t.id}" style="margin-top:12px;"></div>
-        </div>
-      </div>
-    `).join('');
-
-    el('admin-content').innerHTML = `
-      <h2>Teams & Storage</h2>
-      <div class="form-section">
-        <h3>Create Team</h3>
-        <div class="form-row">
-          <div class="field"><label>Name</label><input id="new-team-name" type="text"></div>
-          <div class="field"><label>Docs Folder</label><input id="new-team-folder" type="text" placeholder="/path/to/docs"></div>
-        </div>
-        <button class="btn btn-sm btn-primary" onclick="createTeamAdmin()">Create Team</button>
-      </div>
-      ${cards}
-    `;
-
-    for (const t of teams) loadTeamMembers(t.id);
-  } catch (e) { el('admin-content').innerHTML = `<h2>Teams</h2><div class="error-msg">${e.message}</div>`; }
+    await api('DELETE', `/api/admin/users/${userId}`);
+    toast(`User "${username}" deleted`);
+    loadUsers();
+  } catch(e) { toast(e.message, 'error'); }
 }
 
-async function loadTeamMembers(teamId) {
+async function toggleUserActive(userId, active) {
+  try {
+    await api('PATCH', `/api/admin/users/${userId}/active?active=${active}`);
+    toast(`User ${active ? 'enabled' : 'disabled'}`);
+    loadUsers();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// ── ADMIN TEAMS ───────────────────────────────────────────────────
+async function loadAdminTeams() {
+  let teams;
+  try { teams = await api('GET', '/api/teams/'); }
+  catch(e) { el('admin-content').innerHTML = `<div class="error-msg">${e.message}</div>`; return; }
+
+  let health, ldapSettings;
+  try { [health, ldapSettings] = await Promise.all([
+    api('GET', '/api/admin/health'),
+    api('GET', '/api/admin/settings'),
+  ]); } catch(_) { health = {teams:[]}; ldapSettings = {}; }
+  const vecMap = {};
+  (health.teams||[]).forEach(t => { vecMap[t.team_id] = t.vector_docs; });
+  const ldapEnabled = ldapSettings.ldap_enabled === 'true';
+
+  let allUsers;
+  try { allUsers = await api('GET', '/api/admin/users'); } catch(_) { allUsers = []; }
+
+  const teamCards = teams.map(t => `
+    <div class="team-card" id="tcard-${t.id}">
+      <div class="team-card-header" onclick="toggleTeamCard(${t.id})">
+        <h4>🏢 ${escHtml(t.name)}</h4>
+        <span style="font-size:0.75rem;color:var(--muted);">${vecMap[t.id]??0} docs</span>
+        <button class="btn btn-xs btn-danger" style="margin-left:auto;margin-right:6px;"
+                onclick="event.stopPropagation(); deleteTeam(${t.id}, '${escHtml(t.name)}')">Delete</button>
+        <span style="color:var(--muted);font-size:1rem;">▾</span>
+      </div>
+      <div class="team-card-body hidden" id="tcard-body-${t.id}">
+        <!-- docs folder -->
+        <div style="margin-bottom:12px;">
+          <div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">Docs Folder</div>
+          <div class="inline-edit" style="flex-wrap:wrap;gap:6px;">
+            <input type="text" id="tcard-docs-${t.id}" value="${escHtml(t.docs_folder||'')}" placeholder="/path/to/docs">
+            <button class="btn btn-sm btn-primary" onclick="saveTeamDocsFolder(${t.id})">Save Path</button>
+            <button class="btn btn-sm btn-success" id="ingest-btn-${t.id}" onclick="ingestTeam(${t.id}, '${escHtml(t.name)}')">Ingest Docs</button>
+            <button class="btn btn-sm btn-danger" onclick="adminClearVecStore(${t.id}, '${escHtml(t.name)}')">Clear Vector Store</button>
+          </div>
+          <div style="font-size:0.75rem;color:var(--muted);margin-top:4px;" id="ingest-status-${t.id}">${vecMap[t.id]??0} indexed documents</div>
+        </div>
+
+        <!-- Model Configuration (Manager only) -->
+        <div id="tcard-model-config-${t.id}" style="display:none;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border);">
+          <div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">Team Model Configuration</div>
+          <div id="tcard-current-models-${t.id}" style="margin-bottom:10px;"></div>
+          <button class="btn btn-sm btn-primary" onclick="openModelRequestForm(${t.id}, '${escHtml(t.name)}')">Request New Models</button>
+          <div id="tcard-model-requests-${t.id}" style="margin-top:10px;"></div>
+        </div>
+
+        <!-- members -->
+        <div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">Members</div>
+        <div class="members-list" id="tcard-members-${t.id}">
+          <div style="color:var(--muted);font-size:0.82rem;">Loading…</div>
+        </div>
+
+        <!-- add member — local users -->
+        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-top:8px;">
+          <div class="field" style="margin:0;min-width:180px;">
+            <label>Add Local User</label>
+            <select id="tcard-adduser-${t.id}">
+              ${allUsers.map(u => `<option value="${u.id}">${escHtml(u.username)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field" style="margin:0;">
+            <label>Role</label>
+            <select id="tcard-addrole-${t.id}">
+              <option value="member">Member</option>
+              <option value="manager">Manager</option>
+              <option value="viewer">Viewer</option>
+            </select>
+          </div>
+          <button class="btn btn-sm btn-primary" onclick="addMemberToTeam(${t.id})">Add</button>
+        </div>
+
+        ${ldapEnabled ? `
+        <!-- add member — from Active Directory -->
+        <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);">
+          <div style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">Import from Active Directory</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <input type="text" id="tcard-ad-search-${t.id}" placeholder="Search AD by name or username…"
+                   style="padding:5px 10px;font-size:0.82rem;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);min-width:220px;"
+                   oninput="adSearchDebounce(${t.id}, this.value)">
+            <select id="tcard-ad-role-${t.id}" style="font-size:0.82rem;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);">
+              <option value="member">Member</option>
+              <option value="manager">Manager</option>
+              <option value="viewer">Viewer</option>
+            </select>
+            <span id="tcard-ad-status-${t.id}" style="font-size:0.8rem;color:var(--text-muted);"></span>
+          </div>
+          <div id="tcard-ad-results-${t.id}" style="margin-top:6px;"></div>
+        </div>
+        ` : ''}
+      </div>
+    </div>
+  `).join('');
+
+  el('admin-content').innerHTML = `
+    <h2>Teams &amp; Storage</h2>
+    <div class="form-section" style="margin-bottom:24px;">
+      <h3>Create Team</h3>
+      <div class="form-row">
+        <div class="field"><label>Name</label><input type="text" id="nt-name" placeholder="Team name"></div>
+        <div class="field"><label>Description</label><input type="text" id="nt-desc" placeholder="Optional description"></div>
+        <div class="field"><label>Docs Folder</label><input type="text" id="nt-docs" placeholder="/path/to/docs"></div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="createTeam()">Create Team</button>
+      <span id="nt-msg" style="font-size:0.82rem;margin-left:8px;"></span>
+    </div>
+    <div id="team-cards-list">${teamCards || '<div style="color:var(--muted)">No teams yet</div>'}</div>
+  `;
+
+  // Load members for all teams
+  for (const t of teams) {
+    loadTeamMembersCard(t.id);
+    loadTeamModelConfig(t.id);
+  }
+}
+
+function toggleTeamCard(teamId) {
+  const body = el(`tcard-body-${teamId}`);
+  body.classList.toggle('hidden');
+}
+
+async function loadTeamMembersCard(teamId) {
   try {
     const members = await api('GET', `/api/teams/${teamId}/members`);
-    const container = el(`team-members-${teamId}`);
+    const container = el(`tcard-members-${teamId}`);
     if (!container) return;
-    container.innerHTML = `<div style="font-size:0.78rem;color:var(--muted);margin-bottom:6px;">Members (${members.length})</div>` +
-      members.map(m => `
-        <div class="member-row">
-          <span class="member-name">${escHtml(m.username)}</span>
-          <span class="role-badge role-${m.team_role}">${m.team_role}</span>
-          <button class="btn btn-xs btn-ghost" onclick="removeMember(${teamId}, ${m.user_id})">Remove</button>
-        </div>`).join('');
-  } catch {}
-}
-
-async function createTeamAdmin() {
-  const name = el('new-team-name').value.trim();
-  const folder = el('new-team-folder').value.trim();
-  if (!name) { toast('Team name required', 'error'); return; }
-  try {
-    await api('POST', '/api/teams/', { name, docs_folder: folder || null });
-    toast('Team created');
-    loadTeamsAdmin();
-    loadTeams();
-  } catch (e) { toast(e.message, 'error'); }
-}
-
-async function adminIngest(teamId) {
-  try {
-    const r = await api('POST', `/api/ingest/${teamId}`, {});
-    toast(r.output || 'Done');
-  } catch (e) { toast(e.message, 'error'); }
-}
-
-async function clearVectorStore(teamId, name) {
-  if (!confirm(`Clear all vectors for "${name}"? Documents must be re-ingested.`)) return;
-  try { await api('DELETE', `/api/admin/vectorstore/${teamId}`); toast('Vector store cleared'); }
-  catch (e) { toast(e.message, 'error'); }
-}
-
-async function deleteTeamAdmin(teamId, name) {
-  if (!confirm(`Delete team "${name}"? This removes all members and cannot be undone.`)) return;
-  try { await api('DELETE', `/api/teams/${teamId}`); toast('Team deleted'); loadTeamsAdmin(); loadTeams(); }
-  catch (e) { toast(e.message, 'error'); }
-}
-
-async function removeMember(teamId, userId) {
-  try { await api('DELETE', `/api/teams/${teamId}/members/${userId}`); loadTeamMembers(teamId); }
-  catch (e) { toast(e.message, 'error'); }
-}
-
-// ── MODEL REQUESTS (Admin) ─────────────────────────────────────
-async function loadModelRequests() {
-  el('admin-content').innerHTML = '<h2>Model Requests</h2><p style="color:var(--muted);">Loading...</p>';
-  try {
-    const requests = await api('GET', '/api/admin/model-requests');
-    const pending = requests.filter(r => r.status === 'pending');
-    const others = requests.filter(r => r.status !== 'pending');
-
-    const renderRow = r => `
-      <tr>
-        <td>${escHtml(r.team_name)}</td><td>${escHtml(r.requester_username)}</td>
-        <td style="font-size:0.78rem;">${new Date(r.created_at+'Z').toLocaleString()}</td>
-        <td><span class="model-tag">${escHtml(r.llm_provider||'')}: ${escHtml(r.llm_model||'')}</span></td>
-        <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;" title="${escHtml(r.justification)}">${escHtml((r.justification||'').slice(0,50))}</td>
-        <td><span class="badge ${r.status==='approved'?'badge-high':r.status==='rejected'?'badge-low':'badge-medium'}">${r.status.toUpperCase()}</span></td>
-        <td class="actions">
-          ${r.status === 'pending' ? `
-            <button class="btn btn-xs btn-success" onclick="approveRequest(${r.id})">Approve</button>
-            <button class="btn btn-xs btn-danger" onclick="rejectRequest(${r.id})">Reject</button>
-          ` : ''}
-        </td>
-      </tr>`;
-
-    el('admin-content').innerHTML = `
-      <h2>Model Requests</h2>
-      <div class="info-card"><h3>Pending (${pending.length})</h3>
-        <div class="tbl-wrap"><table><thead><tr><th>Team</th><th>By</th><th>Date</th><th>Model</th><th>Justification</th><th>Status</th><th>Actions</th></tr></thead>
-        <tbody>${pending.map(renderRow).join('') || '<tr><td colspan="7" style="color:var(--muted);">None</td></tr>'}</tbody></table></div>
-      </div>
-      <div class="info-card"><h3>History (${others.length})</h3>
-        <div class="tbl-wrap"><table><thead><tr><th>Team</th><th>By</th><th>Date</th><th>Model</th><th>Justification</th><th>Status</th><th>Actions</th></tr></thead>
-        <tbody>${others.map(renderRow).join('') || '<tr><td colspan="7" style="color:var(--muted);">None</td></tr>'}</tbody></table></div>
-      </div>
-    `;
-  } catch (e) { el('admin-content').innerHTML = `<h2>Model Requests</h2><div class="error-msg">${e.message}</div>`; }
-}
-
-async function approveRequest(id) {
-  if (!confirm('Approve this model request?')) return;
-  try { await api('POST', `/api/admin/model-requests/${id}/approve`); toast('Approved'); loadModelRequests(); updateModelRequestBadge(); }
-  catch (e) { toast(e.message, 'error'); }
-}
-
-async function rejectRequest(id) {
-  const reason = prompt('Rejection reason (min 10 chars):');
-  if (!reason || reason.trim().length < 10) { toast('Reason must be at least 10 characters', 'error'); return; }
-  try { await api('POST', `/api/admin/model-requests/${id}/reject`, { reason: reason.trim() }); toast('Rejected'); loadModelRequests(); updateModelRequestBadge(); }
-  catch (e) { toast(e.message, 'error'); }
-}
-
-async function updateModelRequestBadge() {
-  if (S.user?.system_role !== 'admin') return;
-  try {
-    const requests = await api('GET', '/api/admin/model-requests?status=pending');
-    const badge = el('model-req-badge');
-    if (badge) {
-      if (requests.length > 0) { badge.textContent = requests.length; badge.classList.remove('hidden'); }
-      else badge.classList.add('hidden');
+    if (!members.length) {
+      container.innerHTML = '<div style="color:var(--muted);font-size:0.82rem;">No members</div>';
+      return;
     }
-  } catch {}
+    container.innerHTML = members.map(m => `
+      <div class="member-row">
+        <span class="member-name">${escHtml(m.username)}</span>
+        <span style="font-size:0.75rem;color:var(--muted);">${escHtml(m.email)}</span>
+        <span class="role-badge role-${m.team_role}">${m.team_role}</span>
+        <button class="btn btn-xs btn-danger" onclick="removeMemberFromTeam(${teamId}, ${m.user_id})">✕</button>
+      </div>
+    `).join('');
+  } catch(e) {
+    const c = el(`tcard-members-${teamId}`);
+    if (c) c.innerHTML = `<span style="color:var(--danger);font-size:0.8rem">${e.message}</span>`;
+  }
 }
 
-// ── AUDIT LOG ──────────────────────────────────────────────────
-let _auditLogs = [];
-
-async function loadAudit() {
-  el('admin-content').innerHTML = `
-    <h2>Audit Log</h2>
-    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
-      <button class="btn btn-sm btn-primary" onclick="refreshAudit('1d')">24h</button>
-      <button class="btn btn-sm btn-ghost" onclick="refreshAudit('7d')">7 days</button>
-      <button class="btn btn-sm btn-ghost" onclick="refreshAudit('30d')">30 days</button>
-      <button class="btn btn-sm btn-ghost" onclick="refreshAudit('all')">All</button>
-      <button class="btn btn-sm btn-ghost" onclick="exportAuditCsv()" style="margin-left:auto;">Export CSV</button>
-    </div>
-    <div class="tbl-wrap"><table>
-      <thead><tr><th>Time</th><th>User</th><th>Team</th><th>Action</th><th>Query</th><th>Confidence</th><th>Duration</th><th>Verified</th></tr></thead>
-      <tbody id="audit-tbody"><tr><td colspan="8" style="color:var(--muted);">Loading...</td></tr></tbody>
-    </table></div>
-  `;
-  await refreshAudit('1d');
-}
-
-async function refreshAudit(range) {
-  let url = '/api/admin/audit?limit=500';
-  if (range !== 'all') {
-    const ms = { '1d': 86400000, '7d': 604800000, '30d': 2592000000 }[range] || 86400000;
-    url += `&since=${new Date(Date.now() - ms).toISOString()}`;
+async function createTeam() {
+  const name = el('nt-name').value.trim();
+  const desc = el('nt-desc').value.trim();
+  const docs = el('nt-docs').value.trim();
+  const msg  = el('nt-msg');
+  if (!name) {
+    msg.style.color = 'var(--danger)';
+    msg.textContent = 'Team name is required';
+    return;
   }
   try {
+    await api('POST', '/api/teams/', { name, description: desc || null, docs_folder: docs || null });
+    msg.style.color = 'var(--success)';
+    msg.textContent = `Team "${name}" created`;
+    toast(`Team "${name}" created`);
+    loadAdminTeams();
+    loadTeams();
+  } catch(e) {
+    msg.style.color = 'var(--danger)';
+    msg.textContent = e.message;
+  }
+}
+
+async function saveTeamDocsFolder(teamId) {
+  const folder = el(`tcard-docs-${teamId}`).value.trim();
+  try {
+    await api('PATCH', `/api/teams/${teamId}`, { docs_folder: folder || null });
+    toast('Docs folder saved');
+    // Update in local teams list too
+    const idx = S.teams.findIndex(t => t.id === teamId);
+    if (idx !== -1) S.teams[idx].docs_folder = folder || null;
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function addMemberToTeam(teamId) {
+  const userId = el(`tcard-adduser-${teamId}`).value;
+  const role   = el(`tcard-addrole-${teamId}`).value;
+  try {
+    await api('POST', `/api/teams/${teamId}/members/${userId}?role=${role}`);
+    toast('Member added');
+    loadTeamMembersCard(teamId);
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function removeMemberFromTeam(teamId, userId) {
+  if (!confirm('Remove this member?')) return;
+  try {
+    await api('DELETE', `/api/teams/${teamId}/members/${userId}`);
+    toast('Member removed');
+    loadTeamMembersCard(teamId);
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// ── Team Model Configuration (Manager Panel) ──────────────────────
+async function loadTeamModelConfig(teamId) {
+  try {
+    const membership = await checkTeamRole(teamId);
+    if (!membership || membership.team_role !== 'manager') return;
+
+    // Show the model config section for managers
+    const section = el(`tcard-model-config-${teamId}`);
+    if (section) section.style.display = '';
+
+    // Load current model configuration
+    const models = await api('GET', `/api/teams/${teamId}/models`);
+
+    // Check if vector store has documents (to detect if re-ingestion needed)
+    let vecDocs = 0;
+    try {
+      const health = await api('GET', '/api/admin/health');
+      const teamStats = (health.teams || []).find(t => t.team_id === teamId);
+      vecDocs = teamStats ? teamStats.vector_docs : 0;
+    } catch(_) {}
+
+    // Check if embedding model was recently changed by looking at approved requests
+    const requests = await api('GET', `/api/teams/${teamId}/model-requests`);
+    const recentApproved = requests.find(r =>
+      r.status === 'approved' &&
+      r.embed_provider &&
+      new Date(r.reviewed_at) > new Date(Date.now() - 3600000) // within last hour
+    );
+    const needsReingestion = recentApproved && vecDocs === 0;
+
+    const currentModelsDiv = el(`tcard-current-models-${teamId}`);
+    if (currentModelsDiv) {
+      currentModelsDiv.innerHTML = `
+        ${needsReingestion ? `
+        <div style="background:rgba(239,68,68,.1);border:1px solid var(--danger);border-radius:8px;padding:12px;margin-bottom:10px;font-size:0.82rem;">
+          <div style="display:flex;align-items:start;gap:10px;">
+            <span style="font-size:1.4rem;">⚠️</span>
+            <div>
+              <strong style="color:var(--danger);">Re-ingestion Required</strong>
+              <div style="margin-top:4px;color:var(--text);">
+                Your embedding model was recently changed. The vector store has been cleared.
+                You must re-ingest documents before queries will work.
+              </div>
+              <button class="btn btn-sm btn-warn" style="margin-top:8px;" onclick="triggerReingestion(${teamId})">
+                Re-ingest Documents Now
+              </button>
+            </div>
+          </div>
+        </div>
+        ` : ''}
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:0.82rem;">
+          <div style="font-weight:600;margin-bottom:6px;">Current Models:</div>
+          <div>LLM: <span class="model-tag">${escHtml(models.llm_provider||'system')}: ${escHtml(models.llm_model||'default')}</span>
+            ${models.llm_from_team ? '' : '<span style="color:var(--muted);font-size:0.72rem;margin-left:6px;">(using system defaults)</span>'}
+          </div>
+          <div style="margin-top:4px;">Embed: <span class="model-tag">${escHtml(models.embed_provider||'system')}: ${escHtml(models.embed_model||'default')}</span>
+            ${models.embed_from_team ? '' : '<span style="color:var(--muted);font-size:0.72rem;margin-left:6px;">(using system defaults)</span>'}
+          </div>
+          <div style="margin-top:6px;font-size:0.75rem;color:var(--muted);">
+            Vector Store: ${vecDocs} documents
+          </div>
+        </div>
+      `;
+    }
+
+    // Load request history (reuse requests variable from above)
+    const requestsDiv = el(`tcard-model-requests-${teamId}`);
+    if (requestsDiv && requests.length) {
+      requestsDiv.innerHTML = `
+        <div style="font-size:0.72rem;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">Request History:</div>
+        ${requests.slice(0, 3).map(r => `
+          <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px;margin-bottom:6px;font-size:0.78rem;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="badge ${r.status==='approved'?'badge-high':r.status==='rejected'?'badge-low':'badge-medium'}">
+                ${r.status.toUpperCase()}
+              </span>
+              <span style="color:var(--muted);">${new Date(r.created_at+'Z').toLocaleDateString()}</span>
+              ${r.llm_provider ? `<span class="model-tag">${escHtml(r.llm_provider)}</span>` : ''}
+              ${r.embed_provider ? `<span class="model-tag">${escHtml(r.embed_provider)}</span>` : ''}
+            </div>
+            ${r.rejection_reason ? `<div style="color:var(--danger);font-style:italic;margin-top:4px;">"${escHtml(r.rejection_reason)}"</div>` : ''}
+          </div>
+        `).join('')}
+      `;
+    }
+  } catch(e) {
+    console.log('Failed to load model config for team', teamId, e);
+  }
+}
+
+async function checkTeamRole(teamId) {
+  try {
+    const members = await api('GET', `/api/teams/${teamId}/members`);
+    return members.find(m => m.user_id === S.user.id);
+  } catch(_) {
+    return null;
+  }
+}
+
+async function triggerReingestion(teamId) {
+  console.log('[INGEST] Starting reingestion for team:', teamId);
+  try {
+    // Get team details
+    const allTeams = await api('GET', '/api/teams/');
+    const team = allTeams.find(t => t.id === teamId);
+    if (!team) {
+      toast('Team not found', 'error');
+      return;
+    }
+
+    if (!team.docs_folder) {
+      toast('No docs folder configured for this team. Set it in Admin → Teams & Storage first.', 'error');
+      return;
+    }
+
+    const confirmed = confirm(
+      `Re-ingest documents for team "${team.name}"?\n\n` +
+      `Folder: ${team.docs_folder}\n\n` +
+      `This may take several minutes depending on the number of documents.`
+    );
+    if (!confirmed) {
+      console.log('[INGEST] User cancelled');
+      return;
+    }
+
+    console.log('[INGEST] User confirmed, starting ingestion...');
+
+    // Disable all interactive elements during ingestion
+    const allButtons = document.querySelectorAll('button, input, select, textarea');
+    allButtons.forEach(el => el.disabled = true);
+
+    // Show loading state
+    const modelConfigDiv = el(`tcard-model-${teamId}`);
+    if (modelConfigDiv) {
+      const loadingMsg = document.createElement('div');
+      loadingMsg.id = `ingestion-loading-${teamId}`;
+      loadingMsg.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;color:white;font-weight:600;z-index:1000;border-radius:8px;';
+      loadingMsg.innerHTML = '<div style="text-align:center;"><div style="font-size:1.2rem;margin-bottom:8px;">⏳ Ingesting Documents...</div><div style="font-size:0.85rem;color:rgba(255,255,255,0.8);">This may take several minutes</div></div>';
+      modelConfigDiv.style.position = 'relative';
+      modelConfigDiv.appendChild(loadingMsg);
+    }
+
+    toast('Starting ingestion... this may take a while', 'success');
+
+    console.log('[INGEST] Calling API endpoint:', `/api/ingest/${teamId}`);
+    const result = await api('POST', `/api/ingest/${teamId}`, { folder: team.docs_folder });
+    console.log('[INGEST] API response:', result);
+
+    toast(`Ingestion complete! ${result.output || 'Documents indexed successfully.'}`, 'success');
+
+    // Reload model config to update vector store count
+    console.log('[INGEST] Reloading team model config');
+    await loadTeamModelConfig(teamId);
+    console.log('[INGEST] Complete!');
+  } catch(e) {
+    toast(e.message, 'error');
+  } finally {
+    // Re-enable all interactive elements
+    const allButtons = document.querySelectorAll('button, input, select, textarea');
+    allButtons.forEach(el => el.disabled = false);
+
+    // Remove loading overlay
+    const loadingMsg = document.querySelector(`[id^="ingestion-loading-"]`);
+    if (loadingMsg) loadingMsg.remove();
+  }
+}
+
+async function openModelRequestFormChat() {
+  if (!S.activeTeam) {
+    toast('No team selected', 'error');
+    return;
+  }
+  await openModelRequestForm(S.activeTeam.id, S.activeTeam.name);
+}
+
+async function openModelRequestForm(teamId, teamName) {
+  const llmProvider = prompt(`LLM Provider (ollama/openai/claude) for team "${teamName}":`);
+  if (!llmProvider) return;
+  if (!['ollama', 'openai', 'claude'].includes(llmProvider.toLowerCase())) {
+    toast('Invalid LLM provider. Must be ollama, openai, or claude', 'error');
+    return;
+  }
+
+  const llmModel = prompt(`LLM Model name (e.g., gpt-4o, claude-sonnet-4-6):`);
+  if (!llmModel) return;
+
+  const embedProvider = prompt(`Embedding Provider (ollama/openai) [optional, press Cancel to skip]:`);
+  let embedModel = null;
+  if (embedProvider && embedProvider.trim()) {
+    if (!['ollama', 'openai'].includes(embedProvider.toLowerCase())) {
+      toast('Invalid embedding provider. Must be ollama or openai', 'error');
+      return;
+    }
+    embedModel = prompt(`Embedding Model name:`);
+  }
+
+  const justification = prompt(`Justification (min 20 characters) - why do you need these models?`);
+  if (!justification || justification.trim().length < 20) {
+    toast('Justification must be at least 20 characters', 'error');
+    return;
+  }
+
+  try {
+    const body = {
+      llm_provider: llmProvider.toLowerCase(),
+      llm_model: llmModel.trim(),
+      justification: justification.trim(),
+    };
+    if (embedProvider && embedProvider.trim() && embedModel) {
+      body.embed_provider = embedProvider.toLowerCase();
+      body.embed_model = embedModel.trim();
+    }
+    await api('POST', `/api/teams/${teamId}/model-requests`, body);
+    toast(`Model request submitted for admin approval`, 'success');
+    if (typeof loadTeamModelConfig === 'function') {
+      loadTeamModelConfig(teamId);
+    }
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
+// Submit model request from sidebar form
+async function submitModelRequestFromSidebar() {
+  const msgEl = el('sidebar-model-msg');
+  msgEl.textContent = '';
+  msgEl.style.color = '';
+
+  if (!S.activeTeam) {
+    msgEl.style.color = 'var(--danger)';
+    msgEl.textContent = 'No team selected';
+    return;
+  }
+
+  const llmProvider = el('sidebar-llm-provider').value.trim();
+  const llmModelSelect = el('sidebar-llm-model-select').value;
+  const llmModelCustom = el('sidebar-llm-model-custom').value.trim();
+  const llmModel = llmModelSelect === 'custom' ? llmModelCustom : llmModelSelect;
+
+  const embedProvider = el('sidebar-embed-provider').value.trim();
+  const embedModelSelect = el('sidebar-embed-model-select')?.value || '';
+  const embedModelCustom = el('sidebar-embed-model-custom')?.value.trim() || '';
+  const embedModel = embedModelSelect === 'custom' ? embedModelCustom : embedModelSelect;
+
+  const justification = el('sidebar-justification').value.trim();
+
+  // Validation
+  if (!llmProvider) {
+    msgEl.style.color = 'var(--danger)';
+    msgEl.textContent = 'LLM Provider is required';
+    return;
+  }
+  if (!llmModel) {
+    msgEl.style.color = 'var(--danger)';
+    msgEl.textContent = 'LLM Model is required';
+    return;
+  }
+  if (llmModelSelect === 'custom' && !llmModelCustom) {
+    msgEl.style.color = 'var(--danger)';
+    msgEl.textContent = 'Please enter a custom LLM model name';
+    return;
+  }
+  if (embedProvider && !embedModel) {
+    msgEl.style.color = 'var(--danger)';
+    msgEl.textContent = 'Embed Model is required when provider is selected';
+    return;
+  }
+  if (embedProvider && embedModelSelect === 'custom' && !embedModelCustom) {
+    msgEl.style.color = 'var(--danger)';
+    msgEl.textContent = 'Please enter a custom embed model name';
+    return;
+  }
+  if (justification.length < 20) {
+    msgEl.style.color = 'var(--danger)';
+    msgEl.textContent = 'Justification must be at least 20 characters';
+    return;
+  }
+
+  try {
+    const body = {
+      llm_provider: llmProvider.toLowerCase(),
+      llm_model: llmModel,
+      justification: justification,
+    };
+
+    if (embedProvider && embedModel) {
+      body.embed_provider = embedProvider.toLowerCase();
+      body.embed_model = embedModel;
+    }
+
+    await api('POST', `/api/teams/${S.activeTeam.id}/model-requests`, body);
+
+    msgEl.style.color = 'var(--muted)';
+    msgEl.textContent = '⏳ Request submitted - awaiting approval';
+    toast(`Model request submitted for admin approval`, 'success');
+
+    // Clear form
+    el('sidebar-llm-provider').value = 'ollama';
+    updateLlmModelDropdown();
+    el('sidebar-embed-provider').value = '';
+    updateEmbedModelDropdown();
+    el('sidebar-justification').value = '';
+
+    // Reload model config if in admin view
+    if (typeof loadTeamModelConfig === 'function') {
+      loadTeamModelConfig(S.activeTeam.id);
+    }
+
+    // Refresh model request section to show pending request
+    updateModelRequestSection();
+  } catch(e) {
+    msgEl.style.color = 'var(--danger)';
+    msgEl.textContent = e.message;
+    toast(e.message, 'error');
+  }
+}
+
+// ── Active Directory user search + import ─────────────────────────
+const _adSearchTimers = {};
+
+function adSearchDebounce(teamId, query) {
+  clearTimeout(_adSearchTimers[teamId]);
+  const status = el(`tcard-ad-status-${teamId}`);
+  if (!query.trim()) {
+    el(`tcard-ad-results-${teamId}`).innerHTML = '';
+    status.textContent = '';
+    return;
+  }
+  status.textContent = 'Searching…';
+  _adSearchTimers[teamId] = setTimeout(() => adSearch(teamId, query), 400);
+}
+
+async function adSearch(teamId, query) {
+  const results = el(`tcard-ad-results-${teamId}`);
+  const status  = el(`tcard-ad-status-${teamId}`);
+  try {
+    const users = await api('GET', `/api/admin/ldap/search?q=${encodeURIComponent(query)}`);
+    status.textContent = users.length ? `${users.length} result(s)` : 'No results';
+    if (!users.length) { results.innerHTML = ''; return; }
+    results.innerHTML = `<div style="display:flex;flex-direction:column;gap:4px;max-height:180px;overflow-y:auto;margin-top:4px;">` +
+      users.map(u => `
+        <div style="display:flex;align-items:center;gap:10px;padding:5px 8px;background:var(--bg-alt);border-radius:6px;font-size:0.82rem;">
+          <div style="flex:1;min-width:0;">
+            <span style="font-weight:600;">${escHtml(u.display_name)}</span>
+            <span style="color:var(--text-muted);margin-left:6px;">${escHtml(u.username)}</span>
+            ${u.email ? `<span style="color:var(--text-muted);margin-left:6px;">${escHtml(u.email)}</span>` : ''}
+            ${u.exists_locally ? `<span style="color:var(--success);margin-left:6px;font-size:0.75rem;">✓ local</span>` : ''}
+          </div>
+          <button class="btn btn-xs btn-primary"
+                  onclick="importAndAddAdUser(${teamId}, '${escHtml(u.username)}', '${escHtml(u.display_name)}')">
+            Import &amp; Add
+          </button>
+        </div>`).join('') +
+      `</div>`;
+  } catch(e) {
+    status.style.color = 'var(--danger)';
+    status.textContent = e.message;
+    results.innerHTML = '';
+  }
+}
+
+async function importAndAddAdUser(teamId, username, displayName) {
+  const role   = el(`tcard-ad-role-${teamId}`)?.value || 'member';
+  const status = el(`tcard-ad-status-${teamId}`);
+  status.textContent = `Importing ${username}…`;
+  try {
+    // 1. Import (provision) the AD user locally
+    const user = await api('POST', '/api/admin/ldap/import', { username });
+    // 2. Add to the team
+    await api('POST', `/api/teams/${teamId}/members/${user.id}?role=${role}`);
+    toast(`${displayName} added to team`);
+    // 3. Clear search and refresh members
+    el(`tcard-ad-search-${teamId}`).value = '';
+    el(`tcard-ad-results-${teamId}`).innerHTML = '';
+    status.textContent = '';
+    loadTeamMembersCard(teamId);
+  } catch(e) {
+    status.style.color = 'var(--danger)';
+    status.textContent = e.message;
+  }
+}
+
+// ── AUDIT LOG ─────────────────────────────────────────────────────
+// ── Audit log state ───────────────────────────────────────────────
+let _auditLogs   = [];
+let _auditRange  = '1d';   // '1d' | '3d' | '7d' | '30d' | 'all' | 'custom'
+let _auditSince  = null;
+let _auditUntil  = null;
+
+async function loadAudit() {
+  // Render the shell (filter bar + empty table) immediately
+  el('admin-content').innerHTML = `
+    <h2>Audit Log</h2>
+
+    <!-- Filter bar -->
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px;">
+      <div style="display:flex;gap:4px;flex-wrap:wrap;">
+        ${['1d','3d','7d','30d','all','custom'].map(r => `
+          <button id="arange-${r}" class="btn btn-sm ${r===_auditRange?'btn-primary':'btn-ghost'}"
+                  onclick="setAuditRange('${r}')">${{
+                    '1d':'Last 24 h','3d':'Last 3 days','7d':'Last 7 days',
+                    '30d':'Last 30 days','all':'All time','custom':'Custom'
+                  }[r]}</button>`).join('')}
+      </div>
+      <div id="audit-custom-range" style="display:${_auditRange==='custom'?'flex':'none'};gap:6px;align-items:center;flex-wrap:wrap;">
+        <input type="date" id="audit-from" value="${_auditSince?_auditSince.slice(0,10):''}"
+               style="padding:4px 8px;font-size:0.82rem;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);">
+        <span style="color:var(--text-muted);font-size:0.82rem;">to</span>
+        <input type="date" id="audit-to" value="${_auditUntil?_auditUntil.slice(0,10):''}"
+               style="padding:4px 8px;font-size:0.82rem;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);">
+        <button class="btn btn-sm btn-primary" onclick="applyCustomAuditRange()">Apply</button>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+        <span id="audit-count" style="font-size:0.82rem;color:var(--text-muted);"></span>
+        <button class="btn btn-sm btn-ghost" onclick="exportAuditCsv()">Export CSV</button>
+      </div>
+    </div>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>Time</th><th>Username</th><th>Team</th><th>Model</th><th>Action</th>
+          <th>Query</th><th>Confidence</th><th>Duration</th><th>Verified</th>
+        </tr></thead>
+        <tbody id="audit-tbody"><tr><td colspan="9" style="color:var(--muted);text-align:center;">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  `;
+
+  await refreshAuditTable();
+}
+
+async function refreshAuditTable() {
+  const tbody = el('audit-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="9" style="color:var(--muted);text-align:center;">Loading…</td></tr>';
+
+  let url = '/api/admin/audit?limit=1000';
+  if (_auditSince) url += `&since=${encodeURIComponent(_auditSince)}`;
+  if (_auditUntil) url += `&until=${encodeURIComponent(_auditUntil)}`;
+
+  try {
     _auditLogs = await api('GET', url);
-    const tbody = el('audit-tbody');
-    if (!_auditLogs.length) { tbody.innerHTML = '<tr><td colspan="8" style="color:var(--muted);">No logs</td></tr>'; return; }
-    tbody.innerHTML = _auditLogs.map(l => `
-      <tr>
-        <td style="white-space:nowrap;font-size:0.78rem;">${new Date(l.timestamp+'Z').toLocaleString()}</td>
-        <td>${escHtml(l.username || '')}</td>
-        <td>${escHtml(l.team_name || '')}</td>
-        <td><span class="badge badge-info">${escHtml(l.action)}</span></td>
-        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(l.query||'')}">${escHtml((l.query||'').slice(0,80))}</td>
-        <td>${l.confidence != null ? Math.round(l.confidence*100)+'%' : ''}</td>
-        <td>${l.duration_ms != null ? l.duration_ms+'ms' : ''}</td>
-        <td>${l.provenance_sig ? `<button class="btn btn-xs btn-ghost" onclick="verifyProvenance(${l.id})">Verify</button>` : ''}</td>
-      </tr>
-    `).join('');
-  } catch (e) { el('audit-tbody').innerHTML = `<tr><td colspan="8" style="color:var(--danger);">${e.message}</td></tr>`; }
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="9" style="color:var(--danger);">${e.message}</td></tr>`;
+    return;
+  }
+
+  const countEl = el('audit-count');
+  if (countEl) countEl.textContent = `${_auditLogs.length} record${_auditLogs.length===1?'':'s'}`;
+
+  if (!_auditLogs.length) {
+    tbody.innerHTML = '<tr><td colspan="9" style="color:var(--muted);text-align:center;">No logs for this period</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = _auditLogs.map(l => {
+    // Parse model string: "ollama:llama3.1:8b+ollama:nomic-embed-text" or old format "llama3.1:8b+nomic-embed-text"
+    let modelBadge = '—';
+    if (l.model) {
+      const parts = l.model.split('+');
+      if (parts.length >= 1) {
+        const llmPart = parts[0];
+        // Extract provider (e.g., "ollama:llama3.1:8b" -> "ollama")
+        const providerMatch = llmPart.match(/^(ollama|openai|claude):/);
+        const provider = providerMatch ? providerMatch[1] : 'ollama';
+        const providerColors = {
+          ollama: 'rgba(34,197,94,.18)',
+          openai: 'rgba(129,140,248,.18)',
+          claude: 'rgba(245,158,11,.18)'
+        };
+        const providerIcons = {
+          ollama: '🏠',
+          openai: '☁️',
+          claude: '☁️'
+        };
+        modelBadge = `<span style="display:inline-block;padding:2px 8px;border-radius:99px;font-size:0.72rem;background:${providerColors[provider]||'rgba(107,114,128,.18)'};color:var(--text);" title="${escHtml(l.model)}">${providerIcons[provider]||''} ${escHtml(provider)}</span>`;
+      }
+    }
+
+    return `
+    <tr>
+      <td style="white-space:nowrap;font-size:0.78rem;">${new Date(l.timestamp+'Z').toLocaleString()}</td>
+      <td>${escHtml(l.username || '—')}</td>
+      <td>${escHtml(l.team_name || '—')}</td>
+      <td>${modelBadge}</td>
+      <td><span class="badge badge-info">${escHtml(l.action)}</span></td>
+      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+          title="${escHtml(l.query||'')}">${escHtml((l.query||'').slice(0,90))}</td>
+      <td>${l.confidence != null ? Math.round(l.confidence*100)+'%' : '—'}</td>
+      <td style="white-space:nowrap;">${l.duration_ms != null ? l.duration_ms+'ms' : '—'}</td>
+      <td style="white-space:nowrap;">
+        ${l.provenance_sig
+          ? `<button class="btn btn-xs btn-ghost" id="verify-btn-${l.id}"
+               onclick="verifyProvenance(${l.id})" title="Verify answer provenance">🛡 Verify</button>
+             <span id="verify-result-${l.id}" style="font-size:0.72rem;margin-left:4px;"></span>`
+          : '<span style="color:var(--muted);font-size:0.75rem;">—</span>'}
+      </td>
+    </tr>
+  `;
+  }).join('');
+}
+
+let _lastProvenanceReport = null;
+
+async function verifyProvenance(logId) {
+  const btn    = el(`verify-btn-${logId}`);
+  const result = el(`verify-result-${logId}`);
+  if (btn) btn.disabled = true;
+  if (result) { result.textContent = '…'; result.style.color = 'var(--muted)'; }
+
+  let r;
+  try {
+    r = await api('GET', `/api/admin/audit/${logId}/verify`);
+  } catch(e) {
+    if (result) { result.textContent = 'Error'; result.style.color = 'var(--danger)'; }
+    if (btn) btn.disabled = false;
+    return;
+  }
+
+  if (btn) btn.disabled = false;
+  if (result) {
+    result.style.color = r.verified ? 'var(--success)' : 'var(--danger)';
+    result.textContent = r.verified ? '✓ Valid' : '✗ Invalid';
+  }
+
+  _lastProvenanceReport = r;
+  _showProvenanceModal(r);
+}
+
+function _showProvenanceModal(r) {
+  const chunks       = r.chunk_hashes || [];
+  const showInitial  = 3;
+  const extraChunks  = chunks.slice(showInitial);
+  const sigShort     = r.signature_hex  ? r.signature_hex.slice(0, 32)  + '…' : '—';
+  const pubShort     = r.public_key_hex ? r.public_key_hex.slice(0, 32) + '…' : '—';
+
+  const chunkRows = (list) => list.map((h, i) => `
+    <div class="prov-hash-row">
+      <span class="ph-label">Chunk ${i + 1}</span>
+      <span class="ph-val">${escHtml(h)}</span>
+      <button class="btn-copy" onclick="copyText('${h}', this)">Copy</button>
+    </div>`).join('');
+
+  el('prov-modal-body').innerHTML = `
+    <!-- Status banner -->
+    <div class="prov-status ${r.verified ? 'valid' : 'invalid'}">
+      <span class="status-icon">${r.verified ? '✅' : '❌'}</span>
+      <div>
+        <div class="status-text">${r.verified ? 'Signature Valid' : 'Signature Invalid'}</div>
+        <div class="status-sub">${escHtml(r.reason || '')}</div>
+      </div>
+    </div>
+
+    <!-- Query preview -->
+    ${r.query_preview ? `
+    <div class="prov-section">
+      <h4>Query</h4>
+      <div style="font-size:0.85rem;color:var(--text);font-style:italic;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;">
+        "${escHtml(r.query_preview)}"
+      </div>
+    </div>` : ''}
+
+    <!-- Evidence grid -->
+    <div class="prov-section">
+      <h4>Evidence Hashes (SHA-256)</h4>
+      <div class="prov-grid">
+        <div class="prov-field">
+          <div class="pf-label">Query Hash</div>
+          <div class="pf-value large">${r.query_hash ? escHtml(r.query_hash.slice(0,32))+'…' : '—'}</div>
+          ${r.query_hash ? `<button class="btn-copy" style="margin-top:6px;" onclick="copyText('${r.query_hash}', this)">Copy full hash</button>` : ''}
+        </div>
+        <div class="prov-field">
+          <div class="pf-label">Answer Hash</div>
+          <div class="pf-value large">${r.answer_hash ? escHtml(r.answer_hash.slice(0,32))+'…' : '—'}</div>
+          ${r.answer_hash ? `<button class="btn-copy" style="margin-top:6px;" onclick="copyText('${r.answer_hash}', this)">Copy full hash</button>` : ''}
+        </div>
+        <div class="prov-field">
+          <div class="pf-label">Chunks Signed</div>
+          <div class="pf-value" style="font-size:1.4rem;font-weight:700;">${chunks.length}</div>
+        </div>
+        <div class="prov-field">
+          <div class="pf-label">Model</div>
+          <div class="pf-value">${escHtml(r.model || '—')}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chunk hashes -->
+    ${chunks.length ? `
+    <div class="prov-section">
+      <h4>Retrieved Chunk Hashes</h4>
+      <div id="chunk-list-initial">${chunkRows(chunks.slice(0, showInitial))}</div>
+      ${extraChunks.length ? `
+        <div id="chunk-list-extra" style="display:none;">${chunkRows(extraChunks)}</div>
+        <button class="chunk-toggle" onclick="toggleChunks(this)" data-extra="${extraChunks.length}">
+          Show ${extraChunks.length} more chunk${extraChunks.length > 1 ? 's' : ''}
+        </button>` : ''}
+    </div>` : ''}
+
+    <!-- Signature -->
+    <div class="prov-section">
+      <h4>Ed25519 Signature</h4>
+      <div class="copy-row">
+        <div class="copy-val">${escHtml(r.signature_hex || '—')}</div>
+        ${r.signature_hex ? `<button class="btn-copy" onclick="copyText('${r.signature_hex}', this)">Copy</button>` : ''}
+      </div>
+    </div>
+
+    <!-- Public key -->
+    <div class="prov-section">
+      <h4>Server Public Key (Ed25519)</h4>
+      <div class="copy-row">
+        <div class="copy-val">${escHtml(r.public_key_hex || '—')}</div>
+        ${r.public_key_hex ? `<button class="btn-copy" onclick="copyText('${r.public_key_hex}', this)">Copy</button>` : ''}
+      </div>
+      <div style="font-size:0.73rem;color:var(--muted);margin-top:6px;">
+        Use this key with any Ed25519 tool to independently verify the canonical payload below.
+      </div>
+    </div>
+
+    <!-- Canonical payload -->
+    <div class="prov-section">
+      <h4>Canonical Signed Payload</h4>
+      <div class="copy-row" style="align-items:flex-start;">
+        <pre class="prov-code" style="flex:1;margin:0;">${escHtml(
+          r.canonical_payload
+            ? JSON.stringify(JSON.parse(r.canonical_payload), null, 2)
+            : '—'
+        )}</pre>
+        ${r.canonical_payload ? `<button class="btn-copy" onclick="copyText(${JSON.stringify(r.canonical_payload)}, this)">Copy</button>` : ''}
+      </div>
+      <div style="font-size:0.73rem;color:var(--muted);margin-top:6px;">
+        This JSON (sorted keys, no spaces) is the exact byte string that was signed.
+      </div>
+    </div>
+
+    <!-- Timestamp -->
+    <div class="prov-section">
+      <h4>Signed At</h4>
+      <div style="font-size:0.85rem;color:var(--text);">
+        ${r.timestamp ? new Date(r.timestamp + (r.timestamp.endsWith('Z') ? '' : 'Z')).toLocaleString() : '—'}
+        <span style="font-size:0.72rem;color:var(--muted);margin-left:8px;">(UTC: ${r.timestamp || '—'})</span>
+      </div>
+    </div>
+  `;
+
+  el('prov-modal').classList.remove('hidden');
+}
+
+function closeProvenanceModal(e) {
+  if (e && e.target !== el('prov-modal')) return;
+  el('prov-modal').classList.add('hidden');
+}
+
+function toggleChunks(btn) {
+  const extra = el('chunk-list-extra');
+  if (!extra) return;
+  const hidden = extra.style.display === 'none';
+  extra.style.display = hidden ? '' : 'none';
+  const n = btn.dataset.extra;
+  btn.textContent = hidden
+    ? `Hide extra chunks`
+    : `Show ${n} more chunk${n > 1 ? 's' : ''}`;
+}
+
+function copyText(text, btn) {
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = '✓ Copied';
+    setTimeout(() => btn.textContent = orig, 1800);
+  });
+}
+
+function downloadVerificationReport() {
+  if (!_lastProvenanceReport) return;
+  const report = {
+    zettabrain_verified: true,
+    generated_at:        new Date().toISOString(),
+    log_id:              _lastProvenanceReport.log_id,
+    verified:            _lastProvenanceReport.verified,
+    reason:              _lastProvenanceReport.reason,
+    query_preview:       _lastProvenanceReport.query_preview,
+    timestamp:           _lastProvenanceReport.timestamp,
+    model:               _lastProvenanceReport.model,
+    team_id:             _lastProvenanceReport.team_id,
+    evidence: {
+      query_hash:        _lastProvenanceReport.query_hash,
+      answer_hash:       _lastProvenanceReport.answer_hash,
+      chunk_hashes:      _lastProvenanceReport.chunk_hashes,
+      chunks_signed:     (_lastProvenanceReport.chunk_hashes || []).length,
+    },
+    cryptography: {
+      algorithm:         'Ed25519',
+      signature_hex:     _lastProvenanceReport.signature_hex,
+      public_key_hex:    _lastProvenanceReport.public_key_hex,
+      canonical_payload: _lastProvenanceReport.canonical_payload
+        ? JSON.parse(_lastProvenanceReport.canonical_payload)
+        : null,
+    },
+    verification_note:
+      'To independently verify: use any Ed25519 library to verify signature_hex ' +
+      'over the UTF-8 bytes of canonical_payload (serialised with sorted keys, no spaces) ' +
+      'using public_key_hex.',
+  };
+
+  const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `zettabrain_verified_log${_lastProvenanceReport.log_id}_${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('Verification report downloaded');
+}
+
+function setAuditRange(range) {
+  _auditRange = range;
+  const now = Date.now();
+  const MS  = { '1d': 86400000, '3d': 259200000, '7d': 604800000, '30d': 2592000000 };
+  if (MS[range]) {
+    _auditSince = new Date(now - MS[range]).toISOString();
+    _auditUntil = null;
+  } else if (range === 'all') {
+    _auditSince = null;
+    _auditUntil = null;
+  }
+  // Highlight the active button
+  ['1d','3d','7d','30d','all','custom'].forEach(r => {
+    const b = el(`arange-${r}`);
+    if (b) { b.className = b.className.replace('btn-primary','btn-ghost'); }
+  });
+  const active = el(`arange-${range}`);
+  if (active) active.className = active.className.replace('btn-ghost','btn-primary');
+  // Show/hide custom date pickers
+  const customRow = el('audit-custom-range');
+  if (customRow) customRow.style.display = range === 'custom' ? 'flex' : 'none';
+  if (range !== 'custom') refreshAuditTable();
+}
+
+function applyCustomAuditRange() {
+  const from = el('audit-from')?.value;
+  const to   = el('audit-to')?.value;
+  if (!from && !to) { toast('Select at least one date', 'error'); return; }
+  _auditSince = from ? new Date(from + 'T00:00:00').toISOString() : null;
+  _auditUntil = to   ? new Date(to   + 'T23:59:59').toISOString() : null;
+  refreshAuditTable();
 }
 
 function exportAuditCsv() {
   if (!_auditLogs.length) { toast('No logs to export', 'error'); return; }
-  const cols = ['Timestamp','Username','Team','Action','Query','Confidence','Duration'];
-  const esc = v => `"${String(v ?? '').replace(/"/g,'""')}"`;
+  const cols = ['Timestamp','Username','Team','Action','Query','Confidence %','Duration ms','Chunks','Model','Provenance Sig'];
+  const esc  = v => `"${String(v ?? '').replace(/"/g,'""')}"`;
   const rows = _auditLogs.map(l => [
-    new Date(l.timestamp+'Z').toISOString(), l.username||'', l.team_name||'',
-    l.action, l.query||'', l.confidence!=null?Math.round(l.confidence*100):'', l.duration_ms??'',
+    new Date(l.timestamp+'Z').toISOString(),
+    l.username  || '',
+    l.team_name || '',
+    l.action,
+    l.query || '',
+    l.confidence != null ? Math.round(l.confidence * 100) : '',
+    l.duration_ms ?? '',
+    l.chunks_used ?? '',
+    l.model || '',
+    l.provenance_sig || '',
   ].map(esc).join(','));
-  const csv = [cols.map(esc).join(','), ...rows].join('\r\n');
-  const blob = new Blob([csv], { type: 'text/csv' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-  a.download = `audit_${new Date().toISOString().slice(0,10)}.csv`;
-  a.click(); URL.revokeObjectURL(a.href);
-  toast(`Exported ${_auditLogs.length} records`);
+
+  const csv  = [cols.map(esc).join(','), ...rows].join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `audit_log_${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast(`Exported ${_auditLogs.length} records to CSV`);
 }
 
-// ── PROVENANCE ─────────────────────────────────────────────────
-let _lastProv = null;
-
-async function verifyProvenance(logId) {
+// ── MODEL REQUESTS (Admin) ────────────────────────────────────────
+async function loadModelRequests() {
+  let requests;
   try {
-    const r = await api('GET', `/api/admin/audit/${logId}/verify`);
-    _lastProv = r;
-    el('prov-modal-body').innerHTML = `
-      <div class="prov-status ${r.verified ? 'valid' : 'invalid'}">
-        <span style="font-size:1.3rem;">${r.verified ? '✅' : '❌'}</span>
-        <div><div style="font-weight:600;">${r.verified ? 'Signature Valid' : 'Signature Invalid'}</div>
-        <div style="font-size:0.78rem;opacity:.8;">${escHtml(r.reason||'')}</div></div>
+    requests = await api('GET', '/api/admin/model-requests');
+  } catch(e) {
+    el('admin-content').innerHTML = `<div class="error-msg">${e.message}</div>`;
+    return;
+  }
+
+  const pending  = requests.filter(r => r.status === 'pending');
+  const approved = requests.filter(r => r.status === 'approved');
+  const rejected = requests.filter(r => r.status === 'rejected');
+
+  const renderRequests = (list) => {
+    if (!list.length) return '<tr><td colspan="7" style="color:var(--muted);text-align:center;">No requests</td></tr>';
+    return list.map(r => `
+      <tr>
+        <td>${escHtml(r.team_name)}</td>
+        <td>${escHtml(r.requester_username)}</td>
+        <td style="font-size:0.78rem;">${new Date(r.created_at+'Z').toLocaleString()}</td>
+        <td>
+          ${r.llm_provider ? `<div class="model-tag">${escHtml(r.llm_provider)}: ${escHtml(r.llm_model)}</div>` : '<span style="color:var(--muted)">—</span>'}
+          ${r.embed_provider ? `<div class="model-tag">${escHtml(r.embed_provider)}: ${escHtml(r.embed_model)}</div>` : ''}
+        </td>
+        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;" title="${escHtml(r.justification||'')}">${escHtml((r.justification||'').slice(0,60))}</td>
+        <td>
+          <span class="badge ${r.status==='approved'?'badge-high':r.status==='rejected'?'badge-low':'badge-medium'}">
+            ${r.status==='pending'?'🟡':''}${r.status==='approved'?'🟢':''}${r.status==='rejected'?'🔴':''}
+            ${r.status.toUpperCase()}
+          </span>
+          ${r.reviewed_at ? `<div style="font-size:0.72rem;color:var(--muted);margin-top:2px;">by ${escHtml(r.reviewer_username||'?')} on ${new Date(r.reviewed_at+'Z').toLocaleDateString()}</div>` : ''}
+          ${r.rejection_reason ? `<div style="font-size:0.75rem;color:var(--danger);margin-top:4px;font-style:italic;">"${escHtml(r.rejection_reason)}"</div>` : ''}
+        </td>
+        <td class="actions">
+          ${r.status === 'pending' ? `
+            <button class="btn btn-sm btn-success" onclick="approveModelRequest(${r.id}, '${escHtml(r.team_name)}')">Approve</button>
+            <button class="btn btn-sm btn-danger" onclick="rejectModelRequest(${r.id}, '${escHtml(r.team_name)}')">Reject</button>
+          ` : '<span style="color:var(--muted);font-size:0.75rem;">—</span>'}
+        </td>
+      </tr>
+    `).join('');
+  };
+
+  el('admin-content').innerHTML = `
+    <h2>Model Requests</h2>
+
+    <div class="info-card" style="margin-bottom:18px;">
+      <h3>Pending Requests (${pending.length})</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>Team</th><th>Requester</th><th>Date</th><th>Models</th><th>Justification</th><th>Status</th><th>Actions</th>
+          </tr></thead>
+          <tbody>${renderRequests(pending)}</tbody>
+        </table>
       </div>
-      <div class="prov-section"><h4>Evidence</h4>
-        <div class="prov-grid">
-          <div class="prov-field"><div class="pf-label">Query Hash</div><div class="pf-value">${escHtml((r.query_hash||'').slice(0,32))}...</div></div>
-          <div class="prov-field"><div class="pf-label">Answer Hash</div><div class="pf-value">${escHtml((r.answer_hash||'').slice(0,32))}...</div></div>
-          <div class="prov-field"><div class="pf-label">Chunks</div><div class="pf-value" style="font-size:1.4rem;font-weight:700;">${(r.chunk_hashes||[]).length}</div></div>
-          <div class="prov-field"><div class="pf-label">Model</div><div class="pf-value">${escHtml(r.model||'')}</div></div>
-        </div>
+    </div>
+
+    <div class="info-card" style="margin-bottom:18px;">
+      <h3>Approved Requests (${approved.length})</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>Team</th><th>Requester</th><th>Date</th><th>Models</th><th>Justification</th><th>Status</th><th>Actions</th>
+          </tr></thead>
+          <tbody>${renderRequests(approved)}</tbody>
+        </table>
       </div>
-      <div class="prov-section"><h4>Ed25519 Signature</h4>
-        <div class="copy-row"><div class="copy-val">${escHtml(r.signature_hex||'')}</div></div>
+    </div>
+
+    <div class="info-card">
+      <h3>Rejected Requests (${rejected.length})</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>Team</th><th>Requester</th><th>Date</th><th>Models</th><th>Justification</th><th>Status</th><th>Actions</th>
+          </tr></thead>
+          <tbody>${renderRequests(rejected)}</tbody>
+        </table>
       </div>
-      <div class="prov-section"><h4>Public Key</h4>
-        <div class="copy-row"><div class="copy-val">${escHtml(r.public_key_hex||'')}</div></div>
-      </div>
-    `;
-    el('prov-modal').classList.remove('hidden');
-  } catch (e) { toast(e.message, 'error'); }
+    </div>
+  `;
 }
 
-function closeProvenanceModal(e) {
-  if (e && e.target !== e.currentTarget) return;
-  el('prov-modal').classList.add('hidden');
-}
+async function approveModelRequest(reqId, teamName) {
+  // Fetch request details to check for embedding changes
+  let request, teamModels;
+  try {
+    const allRequests = await api('GET', '/api/admin/model-requests');
+    request = allRequests.find(r => r.id === reqId);
+    if (!request) {
+      toast('Request not found', 'error');
+      return;
+    }
+    teamModels = await api('GET', `/api/teams/${request.team_id}/models`);
+  } catch(e) {
+    toast(e.message, 'error');
+    return;
+  }
 
-function downloadVerificationReport() {
-  if (!_lastProv) return;
-  const blob = new Blob([JSON.stringify(_lastProv, null, 2)], { type: 'application/json' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-  a.download = `verification_${_lastProv.log_id}_${new Date().toISOString().slice(0,10)}.json`;
-  a.click(); URL.revokeObjectURL(a.href);
-  toast('Report downloaded');
-}
+  // Check if embedding provider or model is changing
+  const embedChanging = (
+    request.embed_provider &&
+    (request.embed_provider !== teamModels.embed_provider ||
+     request.embed_model !== teamModels.embed_model)
+  );
 
-// ── MODEL REQUEST (Sidebar) ───────────────────────────────────
-function updateLlmModelDropdown() {}
-function toggleCustomLlmModel() {}
+  let confirmMsg = `Approve model request for team "${teamName}"?`;
 
-async function submitModelRequest() {
-  const msgEl = el('sidebar-model-msg');
-  msgEl.textContent = '';
-  if (!S.activeTeam) { msgEl.style.color='var(--danger)'; msgEl.textContent='No team selected'; return; }
+  if (embedChanging) {
+    const oldEmbed = teamModels.embed_from_team
+      ? `${teamModels.embed_provider}:${teamModels.embed_model}`
+      : `${teamModels.embed_provider}:${teamModels.embed_model} (system default)`;
+    const newEmbed = `${request.embed_provider}:${request.embed_model}`;
 
-  const llmProvider = el('sidebar-llm-provider').value;
-  const llmModel = el('sidebar-llm-model-custom').value.trim();
-  const embedProvider = el('sidebar-embed-provider').value;
-  const embedModel = el('sidebar-embed-model-custom').value.trim();
-  const justification = el('sidebar-justification').value.trim();
+    confirmMsg = `⚠️ EMBEDDING MODEL CHANGE DETECTED\n\n` +
+                 `Team: ${teamName}\n` +
+                 `OLD: ${oldEmbed}\n` +
+                 `NEW: ${newEmbed}\n\n` +
+                 `⚠️ CRITICAL: Different embedding models use incompatible vector dimensions:\n` +
+                 `• Ollama (nomic-embed-text): 768 dimensions\n` +
+                 `• OpenAI (text-embedding-3-small): 1536 dimensions\n` +
+                 `• OpenAI (text-embedding-3-large): 3072 dimensions\n\n` +
+                 `ACTION: The team's vector store will be AUTOMATICALLY CLEARED upon approval.\n` +
+                 `The team MUST re-ingest all documents before queries will work.\n\n` +
+                 `Approve this request?`;
+  }
 
-  if (!llmModel) { msgEl.style.color='var(--danger)'; msgEl.textContent='LLM Model is required'; return; }
-  if (justification.length < 20) { msgEl.style.color='var(--danger)'; msgEl.textContent='Justification must be >=20 chars'; return; }
-
-  const body = { llm_provider: llmProvider, llm_model: llmModel, justification };
-  if (embedProvider && embedModel) { body.embed_provider = embedProvider; body.embed_model = embedModel; }
+  if (!confirm(confirmMsg)) return;
 
   try {
-    await api('POST', `/api/teams/${S.activeTeam.id}/model-requests`, body);
-    msgEl.style.color = 'var(--success)';
-    msgEl.textContent = 'Request submitted';
-    toast('Model request submitted for admin approval');
-    el('sidebar-llm-model-custom').value = '';
-    el('sidebar-justification').value = '';
-  } catch (e) { msgEl.style.color='var(--danger)'; msgEl.textContent=e.message; }
+    await api('POST', `/api/admin/model-requests/${reqId}/approve`);
+    if (embedChanging) {
+      toast(`✅ Request approved. Vector store cleared. Team must re-ingest documents.`);
+    } else {
+      toast(`Request approved for ${teamName}`);
+    }
+    loadModelRequests();
+    updateModelRequestBadge();
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function rejectModelRequest(reqId, teamName) {
+  const reason = prompt(`Reject reason for team "${teamName}" (min 10 characters):`);
+  if (!reason || reason.trim().length < 10) {
+    toast('Rejection reason must be at least 10 characters', 'error');
+    return;
+  }
+  try {
+    await api('POST', `/api/admin/model-requests/${reqId}/reject`, { reason: reason.trim() });
+    toast(`Request rejected for ${teamName}`);
+    loadModelRequests();
+    updateModelRequestBadge();
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function updateModelRequestBadge() {
+  if (S.user && S.user.system_role === 'admin') {
+    try {
+      const requests = await api('GET', '/api/admin/model-requests?status=pending');
+      const badge = el('model-req-badge');
+      if (badge) {
+        if (requests.length > 0) {
+          badge.textContent = requests.length;
+          badge.classList.remove('hidden');
+        } else {
+          badge.classList.add('hidden');
+        }
+      }
+    } catch(_) {}
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  SSE NOTIFICATIONS
+//  REAL-TIME NOTIFICATIONS (SSE)
 // ═══════════════════════════════════════════════════════════════════
-let _sse = null;
+let _sseConnection = null;
 
 function connectSSE() {
   if (!S.token || !S.user) return;
-  if (_sse) _sse.close();
-  _sse = new EventSource(`/api/notifications/stream?token=${encodeURIComponent(S.token)}`);
-  _sse.onmessage = (event) => {
+
+  // Close existing connection
+  if (_sseConnection) {
+    _sseConnection.close();
+  }
+
+  // Connect to SSE endpoint with token as query parameter (EventSource doesn't support headers)
+  const url = `/api/notifications/stream?token=${encodeURIComponent(S.token)}`;
+  console.log('[SSE] Connecting with token:', S.token ? 'present' : 'missing');
+  _sseConnection = new EventSource(url);
+
+  _sseConnection.onopen = () => {
+    console.log('[SSE] Connected successfully');
+  };
+
+  _sseConnection.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data);
-      if (data.type === 'model_request_reviewed' && S.user.system_role !== 'admin') {
-        toast(data.status === 'approved' ? `Model request approved for ${data.team_name}` : `Model request rejected for ${data.team_name}`, data.status === 'approved' ? 'success' : 'error');
-      }
-      if (data.type === 'new_model_request' && S.user.system_role === 'admin') {
-        updateModelRequestBadge();
-        toast(`New model request from ${data.team_name}`);
-        if (S.adminTab === 'model-requests') loadModelRequests();
-      }
-    } catch {}
+      handleSSEEvent(data);
+    } catch (e) {
+      console.error('[SSE] Parse error:', e);
+    }
   };
-  _sse.onerror = () => { _sse.close(); setTimeout(() => { if (S.token) connectSSE(); }, 5000); };
+
+  _sseConnection.onerror = (error) => {
+    console.error('[SSE] Error:', error);
+    _sseConnection.close();
+
+    // Reconnect after 5 seconds
+    setTimeout(() => {
+      if (S.token && S.user) {
+        connectSSE();
+      }
+    }, 5000);
+  };
 }
 
-function disconnectSSE() { if (_sse) { _sse.close(); _sse = null; } }
+function handleSSEEvent(event) {
+  console.log('[SSE] Event:', event);
+
+  if (event.type === 'connected') {
+    // Initial connection
+    return;
+  }
+
+  if (event.type === 'model_request_reviewed') {
+    // Manager notification: request approved/rejected
+    if (S.user.system_role !== 'admin') {
+      // Show real-time toast notification
+      toast(
+        event.status === 'approved'
+          ? `✅ Request approved for ${event.team_name}`
+          : `❌ Request rejected for ${event.team_name}`,
+        event.status === 'approved' ? 'success' : 'error'
+      );
+
+      // Update the sidebar message
+      const msgEl = el('sidebar-model-msg');
+      if (msgEl) {
+        if (event.status === 'approved') {
+          // Clear message on approval (toast is enough)
+          msgEl.textContent = '';
+        } else {
+          msgEl.style.color = 'var(--danger)';
+          msgEl.textContent = `❌ Request rejected for ${event.team_name}`;
+        }
+      }
+
+      // Refresh the model requests section to update status
+      updateModelRequestSection();
+    }
+  }
+
+  if (event.type === 'new_model_request') {
+    // Admin notification: new request submitted
+    if (S.user.system_role === 'admin') {
+      updateModelRequestBadge(); // Refresh badge count
+      toast(`🤖 New model request from ${event.team_name}`, 'success');
+
+      // Refresh model requests list if admin is viewing that tab
+      if (S.adminTab === 'model-requests') {
+        loadModelRequests();
+      }
+    }
+  }
+}
+
+function disconnectSSE() {
+  if (_sseConnection) {
+    _sseConnection.close();
+    _sseConnection = null;
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════════
-//  BOOT
+//  NOTIFICATIONS - Real-time via SSE (no UI list, toast only)
 // ═══════════════════════════════════════════════════════════════════
-(function boot() {
-  const saved = sessionStorage.getItem('zbp_token');
-  if (saved) { S.token = saved; initApp(); }
+// Managers receive real-time toast notifications when admin approves/rejects
+// No notification list or bell icon - just instant toast messages
+// setInterval(() => {
+//   if (S.user && S.user.system_role === 'admin') {
+//     updateModelRequestBadge();
+//   }
+// }, 30000);
+//
+// setInterval(() => {
+//   if (S.user && S.user.system_role !== 'admin') {
+//     loadNotifications();
+//   }
+// }, 30000);
 
-  // Enter key on auth
-  el('auth-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
-  el('confirm-pw')?.addEventListener('keydown', e => { if (e.key === 'Enter') doChangePw(); });
+// ═══════════════════════════════════════════════════════════════════
+//  KEYBOARD SHORTCUTS
+// ═══════════════════════════════════════════════════════════════════
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    cancelPathEdit();
+    el('prov-modal')?.classList.add('hidden');
+  }
+});
 
-  // Escape closes modal
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') el('prov-modal')?.classList.add('hidden'); });
-})();
+// ═══════════════════════════════════════════════════════════════════
+//  GENERATE PORTAL
+// ═══════════════════════════════════════════════════════════════════
+
+let _genSkills = [];
+
+function showGeneratePortal() {
+  el('chat-portal').classList.add('hidden');
+  el('admin-portal')?.classList.add('hidden');
+  el('generate-portal').classList.remove('hidden');
+  populateGenTeamSelect();
+}
+
+function showChatPortal() {
+  el('generate-portal').classList.add('hidden');
+  el('admin-portal')?.classList.add('hidden');
+  el('chat-portal').classList.remove('hidden');
+}
+
+function populateGenTeamSelect() {
+  const select = el('gen-team-select');
+  select.innerHTML = '<option value="">Select a team...</option>';
+  if (window._teams) {
+    window._teams.forEach(t => {
+      select.innerHTML += `<option value="${t.id}">${t.name}</option>`;
+    });
+  }
+}
+
+async function loadSkillsForTeam() {
+  const teamId = el('gen-team-select').value;
+  const select = el('gen-skill-select');
+  select.innerHTML = '<option value="">Loading skills...</option>';
+  el('gen-skill-desc').textContent = '';
+  _genSkills = [];
+
+  if (!teamId) {
+    select.innerHTML = '<option value="">Select a skill...</option>';
+    return;
+  }
+
+  try {
+    const data = await api('GET', `/api/teams/${teamId}/skills`);
+    _genSkills = data.skills || [];
+
+    select.innerHTML = '<option value="">Select a skill...</option>';
+    _genSkills.forEach((s, i) => {
+      const tag = s.team_specific ? ' (team)' : '';
+      select.innerHTML += `<option value="${i}">${s.name}${tag}</option>`;
+    });
+  } catch (e) {
+    select.innerHTML = '<option value="">No skills available</option>';
+  }
+}
+
+function onSkillSelect() {
+  const idx = el('gen-skill-select').value;
+  if (idx === '') {
+    el('gen-skill-desc').textContent = '';
+    return;
+  }
+  const skill = _genSkills[parseInt(idx)];
+  el('gen-skill-desc').textContent = skill ? skill.description : '';
+}
+
+async function submitGeneration() {
+  const teamId = el('gen-team-select').value;
+  const skillIdx = el('gen-skill-select').value;
+  const input = el('gen-input').value.trim();
+
+  if (!teamId) { showToast('Select a team', 'error'); return; }
+  if (skillIdx === '') { showToast('Select a skill', 'error'); return; }
+  if (!input) { showToast('Enter input/instructions', 'error'); return; }
+
+  const skill = _genSkills[parseInt(skillIdx)];
+  const btn = el('gen-submit-btn');
+  const status = el('gen-status');
+
+  btn.disabled = true;
+  btn.textContent = 'Generating...';
+  status.textContent = 'Processing your request...';
+  el('gen-result').classList.add('hidden');
+
+  const body = {
+    input: input,
+    skill_name: skill.name,
+    context: {},
+  };
+
+  const temp = parseFloat(el('gen-temp').value);
+  if (!isNaN(temp)) body.temperature = temp;
+  const maxTok = parseInt(el('gen-max-tokens').value);
+  if (!isNaN(maxTok)) body.max_tokens = maxTok;
+
+  try {
+    const data = await api('POST', `/api/teams/${teamId}/generate`, body);
+
+    el('gen-result-content').textContent = data.content;
+    el('gen-result-meta').textContent =
+      `Skill: ${data.skill_name} v${data.skill_version} | Generated in ${data.generation_time_ms}ms`;
+
+    if (data.citations && data.citations.length > 0) {
+      el('gen-result-citations').classList.remove('hidden');
+      el('gen-citations-list').innerHTML = data.citations.map(c => `<div>• ${c}</div>`).join('');
+    } else {
+      el('gen-result-citations').classList.add('hidden');
+    }
+
+    el('gen-result').classList.remove('hidden');
+    status.textContent = '';
+    showToast('Document generated successfully');
+  } catch (e) {
+    status.textContent = '';
+    showToast(e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Generate Document';
+  }
+}
+
+function copyGenResult() {
+  const content = el('gen-result-content').textContent;
+  navigator.clipboard.writeText(content).then(() => showToast('Copied to clipboard'));
+}
+
+function downloadGenResult() {
+  const content = el('gen-result-content').textContent;
+  const blob = new Blob([content], {type: 'text/plain'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'generated-document.txt';
+  a.click();
+  URL.revokeObjectURL(url);
+}
 </script>
 </body>
 </html>

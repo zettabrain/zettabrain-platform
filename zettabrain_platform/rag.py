@@ -1,5 +1,3 @@
-"""RAG retrieval engine — hybrid search (MMR + BM25 + FlashRank reranking)."""
-
 from __future__ import annotations
 
 import hashlib
@@ -12,8 +10,11 @@ from typing import List, Optional
 from langchain_chroma import Chroma
 from langchain_core.prompts import PromptTemplate
 
-from ..config import CHROMA_DIR
+from zettabrain_rag.retrieval import format_context
 
+# Teams-specific prompt — stricter than the base zettabrain-rag prompt.
+# Forces the LLM to use the sentinel when it cannot answer from context,
+# which lets us zero out confidence and sources programmatically.
 _TEAMS_RAG_PROMPT = """\
 You are a precise document assistant for a team workspace.
 Answer the question using ONLY the information in the context below.
@@ -33,6 +34,7 @@ Question: {question}
 
 Answer:"""
 
+# Phrases that indicate the LLM could not answer from context
 _OOS_PHRASES = (
     "outside the scope of this team",
     "i don't have information",
@@ -49,15 +51,19 @@ _OOS_PHRASES = (
     "no relevant information",
 )
 
-_CONFIDENCE_THRESHOLD = 0.55
-_MIN_RERANK_LOGIT = -0.5
-_SUPPORTED_EXTS = {".pdf", ".txt", ".docx", ".doc", ".md"}
-
 
 def _is_out_of_scope(answer: str) -> bool:
     lower = answer.lower()
     return any(p in lower for p in _OOS_PHRASES)
 
+from .config import CHROMA_DIR, EMBED_MODEL, LLM_MODEL, OLLAMA_HOST, team_chroma_path
+
+_CONFIDENCE_THRESHOLD = 0.55
+# Minimum FlashRank logit a chunk must reach to be passed to the LLM.
+# sigmoid(-0.5) ≈ 0.38 — filters clearly off-topic chunks while keeping
+# borderline-relevant ones that may still help the model.
+_MIN_RERANK_LOGIT = -0.5
+_SUPPORTED_EXTS = {".pdf", ".txt", ".docx", ".doc", ".md"}
 
 def get_vectorstore(
     team_slug: str,
@@ -66,7 +72,8 @@ def get_vectorstore(
     ollama_host: Optional[str] = None,
     openai_key: Optional[str] = None,
 ) -> Chroma:
-    from ..llm.factory import get_embeddings
+    """Create a vectorstore for a team using the configured embedding provider."""
+    from .llm_factory import get_embeddings
 
     path = str(CHROMA_DIR / team_slug)
     Path(path).mkdir(parents=True, exist_ok=True)
@@ -84,6 +91,11 @@ def get_vectorstore(
         collection_name="zettabrain_docs",
     )
 
+
+# ── Per-team BM25 index ───────────────────────────────────────────────────────
+# The shared zettabrain_rag.retrieval module keeps a single global BM25 file,
+# which causes cross-team document leakage. We maintain one index per team slug
+# at {CHROMA_DIR}/{team_slug}/bm25_index.pkl instead.
 
 def _team_bm25_path(team_slug: str) -> Path:
     return CHROMA_DIR / team_slug / "bm25_index.pkl"
@@ -127,6 +139,9 @@ def _bm25_search_team(query: str, team_slug: str, k: int = 8) -> list:
         max_score = float(scores.max()) if len(scores) else 0.0
         if max_score <= 0:
             return []
+        # Relative threshold: only keep chunks scoring ≥ 20 % of the top
+        # BM25 score. Prevents documents that merely contain one common query
+        # word from polluting the candidate pool.
         min_score = max_score * 0.20
         top = scores.argsort()[-(min(k, len(scores))):][::-1]
         return [
@@ -138,13 +153,30 @@ def _bm25_search_team(query: str, team_slug: str, k: int = 8) -> list:
 
 
 def _hybrid_retrieve(question: str, vectorstore, team_slug: str, top_k: int = 5) -> tuple:
+    """Team-scoped hybrid retrieval: MMR + BM25 + FlashRank re-ranking.
+
+    Returns (docs, top_rerank_score_or_None).
+
+    Chunk filtering strategy:
+    - MMR fetch_k reduced to 20 (smaller pool → less noise before reranking)
+    - BM25 uses a relative score threshold (see _bm25_search_team) to drop
+      documents that only match a single common word
+    - After FlashRank re-ranking, chunks below _MIN_RERANK_LOGIT are discarded
+      before being passed to the LLM — this is the primary fix for wrong-source
+      documents appearing in results
+    - Falls back to the top-1 chunk if every candidate is below the threshold
+      (ensures OOS detection still works rather than returning empty context)
+    """
+    # 1. Semantic MMR — reduced fetch_k to tighten the candidate pool
     semantic = vectorstore.as_retriever(
         search_type="mmr",
         search_kwargs={"k": 6, "fetch_k": 20, "lambda_mult": 0.82},
     ).invoke(question)
 
+    # 2. BM25 keyword search — relative-threshold filtered
     keyword = _bm25_search_team(question, team_slug, k=8)
 
+    # 3. Merge + deduplicate (semantic first so MMR order is preserved)
     seen, merged = set(), []
     for doc in semantic + keyword:
         key = hashlib.md5(doc.page_content.encode()).hexdigest()
@@ -152,14 +184,19 @@ def _hybrid_retrieve(question: str, vectorstore, team_slug: str, top_k: int = 5)
             seen.add(key)
             merged.append(doc)
 
+    # 4. Re-rank and filter by minimum score
     try:
         from flashrank import Ranker, RerankRequest
         ranker = Ranker(model_name="ms-marco-MiniLM-L-12-v2", cache_dir="/tmp/flashrank")
         if merged:
             passages = [{"id": i, "text": d.page_content} for i, d in enumerate(merged)]
             ranked   = ranker.rerank(RerankRequest(query=question, passages=passages))
+
+            # Keep only chunks above the minimum logit threshold; always
+            # retain at least the top-1 so the OOS path can still trigger.
             above_threshold = [r for r in ranked if r["score"] >= _MIN_RERANK_LOGIT]
             selected = (above_threshold or ranked[:1])[:top_k]
+
             top_docs  = [merged[r["id"]] for r in selected]
             top_score = float(selected[0]["score"]) if selected else None
             return top_docs, top_score
@@ -170,25 +207,32 @@ def _hybrid_retrieve(question: str, vectorstore, team_slug: str, top_k: int = 5)
 
 
 def _score_confidence(docs: list, answer: str, rerank_score: float = None) -> float:
+    """Score how well-grounded the answer is in the retrieved chunks.
+
+    Uses the FlashRank cross-encoder top score (sigmoid-normalised to 0–1)
+    when available — this is the most reliable signal because it directly
+    measures query-chunk relevance.  Falls back to a chunk-fill ratio when
+    FlashRank is unavailable.
+
+    Concise correct answers are never penalised — word count is irrelevant
+    to whether an answer is grounded in the documents.
+    """
     import math
 
     if not docs or _is_out_of_scope(answer):
         return 0.0
 
     if rerank_score is not None:
+        # Sigmoid of the raw ms-marco logit → interpretable 0–1 probability.
+        # Logit ≥ 2  → > 0.88  (strong retrieval match)
+        # Logit 0    → 0.50    (borderline)
+        # Logit ≤ -2 → < 0.12  (poor match, treat as low confidence)
         normalized = 1.0 / (1.0 + math.exp(-rerank_score))
         return round(min(1.0, normalized), 3)
 
+    # Fallback: proportion of non-trivially-short chunks
     filled = sum(1 for d in docs if len(d.page_content.strip()) > 50)
     return round(filled / len(docs), 3)
-
-
-def _format_context(docs: list) -> str:
-    parts = []
-    for i, doc in enumerate(docs, 1):
-        source = Path(doc.metadata.get("source", "unknown")).name
-        parts.append(f"[Document {i}: {source}]\n{doc.page_content}")
-    return "\n\n".join(parts)
 
 
 def query_team(
@@ -201,10 +245,9 @@ def query_team(
     ollama_host: Optional[str] = None,
     openai_key: Optional[str] = None,
     anthropic_key: Optional[str] = None,
-    cloud_api_key: Optional[str] = None,
 ) -> dict:
-    """Query a team's document library."""
-    from ..llm.factory import get_chat_llm
+    """Query a team's document library using the configured LLM and embedding providers."""
+    from .llm_factory import get_llm
 
     vectorstore = get_vectorstore(
         team_slug=team_slug,
@@ -214,6 +257,7 @@ def query_team(
         openai_key=openai_key,
     )
 
+    # Guard: MMR search crashes when collection has fewer docs than fetch_k
     try:
         doc_count = vectorstore._collection.count()
     except Exception:
@@ -221,7 +265,7 @@ def query_team(
 
     if doc_count == 0:
         return {
-            "answer":          "No documents have been ingested for this team yet.",
+            "answer":          "No documents have been ingested for this team yet. Ask your admin to ingest the team's documents first.",
             "confidence":      0.0,
             "chunks":          0,
             "duration_ms":     0,
@@ -232,33 +276,38 @@ def query_team(
     t0   = time.time()
     docs, rerank_score = _hybrid_retrieve(question, vectorstore, team_slug)
 
-    llm = get_chat_llm(
+    llm = get_llm(
         provider=llm_provider,
         model=llm_model,
         ollama_host=ollama_host,
         openai_key=openai_key,
         anthropic_key=anthropic_key,
-        cloud_api_key=cloud_api_key,
     )
 
     prompt  = PromptTemplate.from_template(_TEAMS_RAG_PROMPT)
-    context = _format_context(docs)
+    context = format_context(docs)
     response = llm.invoke(prompt.format(context=context, question=question))
 
+    # Handle different response types (string or AIMessage object)
     if hasattr(response, 'content'):
+        # AIMessage object (newer models like Claude 4.x)
         answer = response.content.strip() if isinstance(response.content, str) else str(response.content).strip()
     else:
+        # Plain string (older models)
         answer = response.strip() if isinstance(response, str) else str(response).strip()
 
     duration_ms = int((time.time() - t0) * 1000)
     oos         = _is_out_of_scope(answer)
     confidence  = _score_confidence(docs, answer, rerank_score)
 
+    # When the LLM can't answer from context: use a clean fixed message,
+    # report zero chunks and no sources so the UI is unambiguous.
     if oos:
         answer  = "This question is outside the scope of this team's document library."
         sources = []
         docs    = []
     else:
+        # Sources in ranked order (highest-relevance doc first, no duplicates)
         seen_src: set = set()
         sources: list = []
         for d in docs:
@@ -281,4 +330,116 @@ def query_team(
         "query_hash":      query_hash,
         "chunk_hashes":    chunk_hashes,
         "answer_hash":     answer_hash,
+    }
+
+
+# ── In-process document ingestion ────────────────────────────────────────────
+
+def ingest_team_docs(
+    team_slug: str,
+    folder: str,
+    embed_provider: str,
+    embed_model: str,
+    ollama_host: Optional[str] = None,
+    openai_key: Optional[str] = None,
+) -> dict:
+    """Ingest documents into a team's vectorstore using the configured embedding provider."""
+    from langchain_community.document_loaders import PyPDFLoader, TextLoader
+    from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+    vectorstore = get_vectorstore(
+        team_slug=team_slug,
+        embed_provider=embed_provider,
+        embed_model=embed_model,
+        ollama_host=ollama_host,
+        openai_key=openai_key,
+    )
+
+    folder_path     = Path(folder)
+    chroma_path     = Path(team_chroma_path(team_slug))
+    hash_cache_path = chroma_path / "ingested_files.json"
+
+    # Load per-team hash cache
+    hash_cache: dict = {}
+    if hash_cache_path.exists():
+        try:
+            hash_cache = json.loads(hash_cache_path.read_text())
+        except Exception:
+            pass
+
+    files = sorted(
+        f for f in folder_path.rglob("*")
+        if f.is_file() and f.suffix.lower() in _SUPPORTED_EXTS
+    )
+
+    splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
+    ingested = 0
+    skipped  = 0
+    errors: List[str] = []
+
+    for f in files:
+        filepath = str(f.resolve())
+        try:
+            file_hash = hashlib.md5(f.read_bytes()).hexdigest()
+        except Exception as e:
+            errors.append(f"{f.name}: read error: {e}")
+            continue
+
+        if hash_cache.get(filepath) == file_hash:
+            skipped += 1
+            continue
+
+        ext = f.suffix.lower()
+        try:
+            if ext == ".pdf":
+                docs = PyPDFLoader(filepath).load()
+            elif ext in {".txt", ".md"}:
+                docs = TextLoader(filepath, encoding="utf-8").load()
+            elif ext in {".docx", ".doc"}:
+                from langchain_community.document_loaders import Docx2txtLoader
+                docs = Docx2txtLoader(filepath).load()
+            else:
+                continue
+        except Exception as e:
+            errors.append(f"{f.name}: load error: {e}")
+            continue
+
+        if not docs:
+            errors.append(f"{f.name}: no text extracted")
+            continue
+
+        chunks = splitter.split_documents(docs)
+        chunks = [c for c in chunks if c.page_content.strip()]
+
+        if not chunks:
+            errors.append(f"{f.name}: no chunks after splitting")
+            continue
+
+        for chunk in chunks:
+            chunk.metadata["source"]   = filepath
+            chunk.metadata["filename"] = f.name
+
+        try:
+            for i in range(0, len(chunks), 50):
+                vectorstore.add_documents(chunks[i : i + 50])
+            hash_cache[filepath] = file_hash
+            ingested += 1
+        except Exception as e:
+            errors.append(f"{f.name}: embedding failed: {e}")
+
+    # Persist hash cache
+    chroma_path.mkdir(parents=True, exist_ok=True)
+    hash_cache_path.write_text(json.dumps(hash_cache, indent=2))
+
+    # Rebuild per-team BM25 keyword index
+    _rebuild_team_bm25(vectorstore, team_slug)
+
+    total_chunks = vectorstore._collection.count()
+
+    return {
+        "files_found":    len(files),
+        "files_ingested": ingested,
+        "files_skipped":  skipped,
+        "total_chunks":   total_chunks,
+        "errors":         errors,
     }

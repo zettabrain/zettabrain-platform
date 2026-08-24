@@ -1,29 +1,39 @@
 from __future__ import annotations
 
 import re
-from typing import Annotated, List
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import select
+from sqlmodel import func, select
 
 from ..deps import AdminUser, CurrentUser, SessionDep, get_team_membership
 from ..models import (
-    SystemRole, Team, TeamCreate, TeamMember, TeamMemberRead, TeamRead, TeamRole, TeamUpdate, User,
+    SystemRole,
+    Team,
+    TeamCreate,
+    TeamMember,
+    TeamMemberRead,
+    TeamRead,
+    TeamRole,
+    TeamUpdate,
+    User,
 )
 
 router = APIRouter(prefix="/api/teams", tags=["teams"])
 
 
 def _slugify(name: str) -> str:
-    slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
-    return slug or "team"
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
 
 
-@router.get("/", response_model=List[TeamRead])
+@router.get("/", response_model=list[TeamRead])
 def list_teams(current_user: CurrentUser, session: SessionDep):
-    if current_user.system_role.value == "admin":
+    if current_user.system_role == "admin":
         return session.exec(select(Team)).all()
-    team_ids = [m.team_id for m in current_user.memberships]
+    memberships = session.exec(
+        select(TeamMember).where(TeamMember.user_id == current_user.id)
+    ).all()
+    team_ids = [m.team_id for m in memberships]
     if not team_ids:
         return []
     return session.exec(select(Team).where(Team.id.in_(team_ids))).all()
@@ -31,25 +41,29 @@ def list_teams(current_user: CurrentUser, session: SessionDep):
 
 @router.post("/", response_model=TeamRead)
 def create_team(body: TeamCreate, _: AdminUser, session: SessionDep):
+    from zettabrain_platform.server import _license_info
     slug = _slugify(body.name)
     if session.exec(select(Team).where(Team.slug == slug)).first():
         raise HTTPException(status_code=409, detail="Team slug already exists")
-    team = Team(name=body.name, slug=slug, description=body.description, docs_folder=body.docs_folder)
+
+    max_teams = _license_info.get("max_teams")
+    if max_teams is not None:
+        current_count = session.exec(select(func.count(Team.id))).one()
+        if current_count >= max_teams:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Team limit reached ({max_teams}). Upgrade your license to create more teams.",
+            )
+
+    team = Team(
+        name=body.name,
+        slug=slug,
+        description=body.description,
+        docs_folder=body.docs_folder,
+    )
     session.add(team)
     session.commit()
     session.refresh(team)
-    return team
-
-
-@router.get("/{team_id}", response_model=TeamRead)
-def get_team(
-    team_id: int,
-    membership: Annotated[TeamMember, Depends(get_team_membership)],
-    session: SessionDep,
-):
-    team = session.get(Team, team_id)
-    if not team:
-        raise HTTPException(status_code=404, detail="Team not found")
     return team
 
 
@@ -64,6 +78,7 @@ def update_team(
     if not team:
         raise HTTPException(status_code=404, detail="Team not found")
 
+    # Admins can update any team; managers can update their own
     if current_user.system_role != SystemRole.admin:
         membership = session.exec(
             select(TeamMember).where(
@@ -72,7 +87,10 @@ def update_team(
             )
         ).first()
         if not membership or membership.team_role not in (TeamRole.manager,):
-            raise HTTPException(status_code=403, detail="Admin or team manager role required")
+            raise HTTPException(
+                status_code=403,
+                detail="Admin or team manager role required",
+            )
 
     if body.name is not None:
         new_slug = _slugify(body.name)
@@ -92,25 +110,27 @@ def update_team(
     return team
 
 
-@router.get("/{team_id}/members", response_model=List[TeamMemberRead])
+@router.get("/{team_id}/members", response_model=list[TeamMemberRead])
 def list_members(
     team_id: int,
-    membership: Annotated[TeamMember, Depends(get_team_membership)],
+    _: Annotated[TeamMember, Depends(get_team_membership)],
     session: SessionDep,
 ):
-    members = session.exec(select(TeamMember).where(TeamMember.team_id == team_id)).all()
-    result = []
-    for m in members:
-        user = session.get(User, m.user_id)
-        if user:
-            result.append(TeamMemberRead(
-                user_id=user.id,
-                username=user.username,
-                email=user.email,
-                team_role=m.team_role,
-                joined_at=m.joined_at,
-            ))
-    return result
+    rows = session.exec(
+        select(TeamMember, User)
+        .join(User, User.id == TeamMember.user_id)
+        .where(TeamMember.team_id == team_id)
+    ).all()
+    return [
+        TeamMemberRead(
+            user_id   = m.user_id,
+            username  = u.username,
+            email     = u.email,
+            team_role = m.team_role,
+            joined_at = m.joined_at,
+        )
+        for m, u in rows
+    ]
 
 
 @router.post("/{team_id}/members/{user_id}", response_model=TeamMemberRead)
@@ -125,7 +145,10 @@ def add_member(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     existing = session.exec(
-        select(TeamMember).where(TeamMember.user_id == user_id, TeamMember.team_id == team_id)
+        select(TeamMember).where(
+            TeamMember.user_id == user_id,
+            TeamMember.team_id == team_id,
+        )
     ).first()
     if existing:
         existing.team_role = role
@@ -149,6 +172,7 @@ def delete_team(team_id: int, _: AdminUser, session: SessionDep):
     team = session.get(Team, team_id)
     if not team:
         raise HTTPException(status_code=404, detail="Team not found")
+    # Remove all memberships first
     members = session.exec(select(TeamMember).where(TeamMember.team_id == team_id)).all()
     for m in members:
         session.delete(m)
@@ -157,9 +181,17 @@ def delete_team(team_id: int, _: AdminUser, session: SessionDep):
 
 
 @router.delete("/{team_id}/members/{user_id}", status_code=204)
-def remove_member(team_id: int, user_id: int, _: AdminUser, session: SessionDep):
+def remove_member(
+    team_id: int,
+    user_id: int,
+    _: AdminUser,
+    session: SessionDep,
+):
     m = session.exec(
-        select(TeamMember).where(TeamMember.user_id == user_id, TeamMember.team_id == team_id)
+        select(TeamMember).where(
+            TeamMember.user_id == user_id,
+            TeamMember.team_id == team_id,
+        )
     ).first()
     if m:
         session.delete(m)
@@ -172,10 +204,16 @@ def get_team_stats(
     membership: Annotated[TeamMember, Depends(get_team_membership)],
     session: SessionDep,
 ):
+    """
+    Get statistics for a team (vector document count, etc.).
+
+    Accessible to all team members (not just admins).
+    """
     team = session.get(Team, team_id)
     if not team:
         raise HTTPException(status_code=404, detail="Team not found")
 
+    # Get vector document count
     vector_docs = 0
     try:
         from ..config import CHROMA_DIR
@@ -187,9 +225,10 @@ def get_team_stats(
                 collection = client.get_collection("zettabrain_docs")
                 vector_docs = collection.count()
             except Exception:
-                pass
+                # Collection doesn't exist or other error
+                vector_docs = 0
     except Exception:
-        pass
+        vector_docs = 0
 
     return {
         "team_id": team.id,

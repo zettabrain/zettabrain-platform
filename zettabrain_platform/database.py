@@ -24,37 +24,30 @@ def _migrate_db() -> None:
         ("auditlog", "chunk_hashes",   "VARCHAR"),
         ("auditlog", "answer_hash",    "VARCHAR"),
         ("auditlog", "provenance_sig", "VARCHAR"),
-        ("auditlog", "skill_name",     "VARCHAR"),
-        ("auditlog", "document_id",    "VARCHAR"),
-        ("team", "llm_provider",       "VARCHAR"),
-        ("team", "llm_model",          "VARCHAR"),
-        ("team", "embed_provider",     "VARCHAR"),
-        ("team", "embed_model",        "VARCHAR"),
-        ("team", "skills_enabled",     "BOOLEAN DEFAULT 1"),
-        ("user", "failed_login_count", "INTEGER DEFAULT 0"),
-        ("user", "locked_until",       "VARCHAR"),
+        # Model delegation: team-level model configuration
+        ("team", "llm_provider",   "VARCHAR"),
+        ("team", "llm_model",      "VARCHAR"),
+        ("team", "embed_provider", "VARCHAR"),
+        ("team", "embed_model",    "VARCHAR"),
     ]
     with engine.connect() as conn:
         for table, col, typ in new_cols:
             try:
-                conn.execute(
+                conn.execute(  # type: ignore[arg-type]
                     __import__("sqlalchemy").text(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
                 )
                 conn.commit()
             except Exception:
-                pass
+                pass  # column already exists — ignore
 
 
 def init_db() -> bool:
     """Create tables, run migrations, and seed a default admin. Returns True if first run."""
-    from .models import (  # noqa: F401 — import so SQLModel registers tables
-        AuditLog, GeneratedDocument, ModelRequest, SystemConfig, Team, TeamMember, User,
-    )
-    from .auth import hash_password
-    from .models import SystemRole
-
     SQLModel.metadata.create_all(engine)
     _migrate_db()
+
+    from .models import SystemRole, User
+    from .auth import hash_password
 
     with Session(engine) as session:
         existing = session.exec(select(User).where(User.system_role == SystemRole.admin)).first()

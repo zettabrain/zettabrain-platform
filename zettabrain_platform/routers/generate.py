@@ -1,327 +1,252 @@
-"""Generative AI endpoint — skill-based document generation with team auth."""
-
+"""Document generation router — skill-based AI document generation per team."""
 from __future__ import annotations
 
-import glob
 import json
-import re
-import time
-import uuid
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
-from sqlmodel import select
+from fastapi import APIRouter, HTTPException, UploadFile, File
+from pydantic import BaseModel
 
 from ..config import SKILLS_DIR
-from ..deps import CurrentUser, SessionDep
+from ..deps import CurrentUser, SessionDep, get_team_membership
 from ..generation.engine import GenerationEngine
-from ..generation.models import GenerationRequest
-from ..generation.skill_parser import load_skill
-from ..models import (
-    AuditLog, GeneratedDocument, GenerateRequest, GenerateResponse,
-    SystemRole, Team, TeamMember,
-)
+from ..generation.models import GenerationRequest, Skill
+from ..generation.skill_parser import SkillParser, load_skill
 
-router = APIRouter(prefix="/api/generate", tags=["generate"])
+router = APIRouter(prefix="/api/teams", tags=["generate"])
 
 
-def _get_team_skills_dir(team_slug: str) -> Path:
-    """Team-scoped skills directory with fallback to shared."""
-    team_dir = SKILLS_DIR / team_slug
-    if team_dir.exists():
-        return team_dir
-    return SKILLS_DIR
+class GenerateBody(BaseModel):
+    input: str
+    skill_name: str
+    context: Dict[str, Any] = {}
+    temperature: Optional[float] = None
+    max_tokens: Optional[int] = None
 
 
-def _load_skills(team_slug: str = "") -> List[Dict[str, Any]]:
-    skills_dir = _get_team_skills_dir(team_slug) if team_slug else SKILLS_DIR
+class SkillUploadBody(BaseModel):
+    content: str
+    filename: str
+
+
+@router.get("/{team_id}/skills")
+def list_skills(
+    team_id: int,
+    current_user: CurrentUser,
+    session: SessionDep,
+):
+    """List available skills for a team."""
+    get_team_membership(team_id, current_user, session)
+
     skills = []
-    for skill_file in sorted(glob.glob(str(skills_dir / "*.md"))):
-        try:
-            skill = load_skill(skill_file)
-            variables = list(set(re.findall(r"\{\{(\w+)\}\}", skill.instructions)))
-            skills.append({
-                "file": skill_file,
-                "name": skill.name,
-                "display_name": skill.name.replace("-", " ").title(),
-                "description": skill.description,
-                "business_type": skill.business_type,
-                "version": skill.version,
-                "requires_corpus": skill.requires_corpus,
-                "citation_required": skill.citation_required,
-                "variables": variables,
-            })
-        except Exception:
-            continue
-
-    # Also include shared skills if team has its own directory
-    if team_slug and (SKILLS_DIR / team_slug).exists():
-        for skill_file in sorted(glob.glob(str(SKILLS_DIR / "*.md"))):
+    skills_path = SKILLS_DIR
+    if skills_path.exists():
+        for f in sorted(skills_path.glob("*.md")):
             try:
-                skill = load_skill(skill_file)
-                variables = list(set(re.findall(r"\{\{(\w+)\}\}", skill.instructions)))
+                skill = SkillParser.parse_file(f)
                 skills.append({
-                    "file": skill_file,
                     "name": skill.name,
-                    "display_name": skill.name.replace("-", " ").title(),
+                    "version": skill.version,
                     "description": skill.description,
                     "business_type": skill.business_type,
-                    "version": skill.version,
                     "requires_corpus": skill.requires_corpus,
-                    "citation_required": skill.citation_required,
-                    "variables": variables,
-                    "shared": True,
+                    "tags": skill.tags,
                 })
             except Exception:
                 continue
 
-    return skills
+    # Also check team-specific skills
+    from ..models import Team
+    team = session.get(Team, team_id)
+    if team:
+        team_skills_path = SKILLS_DIR / team.slug
+        if team_skills_path.exists():
+            for f in sorted(team_skills_path.glob("*.md")):
+                try:
+                    skill = SkillParser.parse_file(f)
+                    skills.append({
+                        "name": skill.name,
+                        "version": skill.version,
+                        "description": skill.description,
+                        "business_type": skill.business_type,
+                        "requires_corpus": skill.requires_corpus,
+                        "tags": skill.tags,
+                        "team_specific": True,
+                    })
+                except Exception:
+                    continue
+
+    return {"skills": skills}
 
 
-def _get_engine() -> GenerationEngine:
-    return GenerationEngine()
-
-
-@router.get("/skills")
-def list_skills(current_user: CurrentUser, session: SessionDep):
-    """List available skills."""
-    return _load_skills()
-
-
-@router.post("/", response_model=GenerateResponse)
+@router.post("/{team_id}/generate")
 def generate_document(
-    body: GenerateRequest,
+    team_id: int,
+    body: GenerateBody,
     current_user: CurrentUser,
     session: SessionDep,
 ):
-    """Generate a document using a skill (team-scoped, authenticated)."""
-    team = session.get(Team, body.team_id)
+    """Generate a document using a skill."""
+    membership = get_team_membership(team_id, current_user, session)
+
+    from ..models import Team
+    team = session.get(Team, team_id)
     if not team:
         raise HTTPException(status_code=404, detail="Team not found")
 
-    if not team.skills_enabled:
-        raise HTTPException(status_code=403, detail="Document generation is disabled for this team")
+    # Find the skill file
+    skill_file = _find_skill_file(body.skill_name, team.slug)
+    if not skill_file:
+        raise HTTPException(status_code=404, detail=f"Skill '{body.skill_name}' not found")
 
-    membership = session.exec(
-        select(TeamMember).where(
-            TeamMember.user_id == current_user.id,
-            TeamMember.team_id == body.team_id,
-        )
-    ).first()
-    if current_user.system_role != SystemRole.admin and not membership:
-        raise HTTPException(status_code=403, detail="Not a team member")
+    skill = load_skill(skill_file)
 
-    skill_path = Path(body.skill_file)
-    if not skill_path.exists():
-        raise HTTPException(status_code=400, detail=f"Skill file not found: {body.skill_file}")
+    # Build corpus retriever if skill requires it
+    corpus_retriever = None
+    if skill.requires_corpus:
+        corpus_retriever = _build_corpus_retriever(team, session)
 
-    skill = load_skill(str(skill_path))
-    engine = _get_engine()
+    engine = GenerationEngine(corpus_retriever=corpus_retriever)
 
-    if not engine.llm_provider.check_health():
-        raise HTTPException(status_code=503, detail="LLM provider is not running")
-
-    today = datetime.now()
-    parts = [f"TODAY'S DATE: {today.strftime('%B %d, %Y')}\n\n"]
-    if body.customer_name:
-        parts.append(f"Customer/Client: {body.customer_name}\n")
-    if body.customer_email:
-        parts.append(f"Email: {body.customer_email}\n")
-    if body.customer_phone:
-        parts.append(f"Phone: {body.customer_phone}\n")
-    if body.customer_name or body.customer_email or body.customer_phone:
-        parts.append("\n")
-    parts.append(body.input_text)
-
-    gen_request = GenerationRequest(
-        input="".join(parts),
-        skill_name=skill.name,
+    request = GenerationRequest(
+        input=body.input,
+        skill_name=body.skill_name,
         business_id=team.slug,
+        context=body.context,
+        temperature=body.temperature,
+        max_tokens=body.max_tokens,
     )
 
-    result = engine.generate(skill, gen_request)
+    result = engine.generate(skill, request)
 
     if not result.success:
         raise HTTPException(status_code=500, detail=f"Generation failed: {result.error}")
 
-    # Persist to database
-    doc = GeneratedDocument(
-        id=result.id,
-        team_id=team.id,
-        user_id=current_user.id,
-        skill_name=skill.name,
-        skill_display=skill.name.replace("-", " ").title(),
-        customer_name=body.customer_name or "Customer",
-        customer_email=body.customer_email,
-        customer_phone=body.customer_phone,
-        request=body.input_text,
-        content=result.content,
-        citations=json.dumps(result.citations) if result.citations else None,
-        generation_time_ms=result.generation_time_ms,
-    )
-    session.add(doc)
-
-    log = AuditLog(
-        user_id=current_user.id,
-        team_id=team.id,
-        action="generate",
-        query=body.input_text[:200],
-        response_preview=result.content[:200],
-        model=getattr(engine.llm_provider, "model", "unknown"),
-        duration_ms=result.generation_time_ms,
-        skill_name=skill.name,
-        document_id=result.id,
-    )
-    session.add(log)
-    session.commit()
-
-    return GenerateResponse(
-        id=result.id,
-        skill_name=skill.name,
-        content=result.content,
-        citations=result.citations,
-        generation_time_ms=result.generation_time_ms,
-    )
-
-
-@router.get("/documents")
-def list_documents(
-    current_user: CurrentUser,
-    session: SessionDep,
-    team_id: int = None,
-    limit: int = 50,
-):
-    """List generated documents for the current user (optionally filtered by team)."""
-    query = select(GeneratedDocument)
-    if current_user.system_role != SystemRole.admin:
-        query = query.where(GeneratedDocument.user_id == current_user.id)
-    if team_id:
-        query = query.where(GeneratedDocument.team_id == team_id)
-    query = query.order_by(GeneratedDocument.created_at.desc()).limit(limit)
-    docs = session.exec(query).all()
-    return [
-        {
-            "id": d.id,
-            "team_id": d.team_id,
-            "skill_name": d.skill_name,
-            "skill_display": d.skill_display,
-            "customer_name": d.customer_name,
-            "request": d.request[:100],
-            "citations": json.loads(d.citations) if d.citations else [],
-            "generation_time_ms": d.generation_time_ms,
-            "created_at": d.created_at.isoformat(),
-        }
-        for d in docs
-    ]
-
-
-@router.get("/documents/{doc_id}")
-def get_document(doc_id: str, current_user: CurrentUser, session: SessionDep):
-    """Get a generated document by ID."""
-    doc = session.get(GeneratedDocument, doc_id)
-    if not doc:
-        raise HTTPException(status_code=404, detail="Document not found")
-
-    if current_user.system_role != SystemRole.admin and doc.user_id != current_user.id:
-        membership = session.exec(
-            select(TeamMember).where(
-                TeamMember.user_id == current_user.id,
-                TeamMember.team_id == doc.team_id,
-            )
-        ).first()
-        if not membership:
-            raise HTTPException(status_code=403, detail="Access denied")
-
     return {
-        "id": doc.id,
-        "team_id": doc.team_id,
-        "skill_name": doc.skill_name,
-        "skill_display": doc.skill_display,
-        "customer_name": doc.customer_name,
-        "customer_email": doc.customer_email,
-        "customer_phone": doc.customer_phone,
-        "request": doc.request,
-        "content": doc.content,
-        "citations": json.loads(doc.citations) if doc.citations else [],
-        "generation_time_ms": doc.generation_time_ms,
-        "created_at": doc.created_at.isoformat(),
+        "id": result.id,
+        "content": result.content,
+        "skill_name": result.skill_name,
+        "skill_version": result.skill_version,
+        "citations": result.citations,
+        "generation_time_ms": result.generation_time_ms,
+        "metadata": result.metadata,
     }
 
 
-@router.websocket("/ws/stream")
-async def ws_generate(websocket: WebSocket):
-    """WebSocket endpoint for streaming document generation."""
-    await websocket.accept()
+@router.post("/{team_id}/skills/upload")
+def upload_skill(
+    team_id: int,
+    body: SkillUploadBody,
+    current_user: CurrentUser,
+    session: SessionDep,
+):
+    """Upload a custom skill for a team (manager only)."""
+    from ..models import Team, TeamRole
+    membership = get_team_membership(team_id, current_user, session)
+    if membership.team_role != TeamRole.manager:
+        raise HTTPException(status_code=403, detail="Team manager role required")
+
+    team = session.get(Team, team_id)
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found")
+
+    # Validate the skill content
+    import tempfile
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as tmp:
+        tmp.write(body.content)
+        tmp_path = tmp.name
+
     try:
-        while True:
-            data = await websocket.receive_json()
+        skill = SkillParser.parse_and_validate(tmp_path)
+    except (ValueError, FileNotFoundError) as e:
+        Path(tmp_path).unlink(missing_ok=True)
+        raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
 
-            skill_file = data.get("skill_file")
-            input_text = data.get("input_text", "")
-            customer_name = data.get("customer_name", "")
+    # Save to team skills directory
+    team_skills_dir = SKILLS_DIR / team.slug
+    team_skills_dir.mkdir(parents=True, exist_ok=True)
 
-            if not skill_file or not input_text:
-                await websocket.send_json({"type": "error", "message": "skill_file and input_text required"})
-                continue
+    filename = body.filename if body.filename.endswith(".md") else f"{body.filename}.md"
+    skill_path = team_skills_dir / filename
+    skill_path.write_text(body.content, encoding="utf-8")
 
-            skill_path = Path(skill_file)
-            if not skill_path.exists():
-                await websocket.send_json({"type": "error", "message": f"Skill not found: {skill_file}"})
-                continue
+    return {
+        "message": f"Skill '{skill.name}' uploaded successfully",
+        "skill": {
+            "name": skill.name,
+            "version": skill.version,
+            "description": skill.description,
+        },
+    }
 
+
+def _find_skill_file(skill_name: str, team_slug: str) -> Optional[Path]:
+    """Find a skill file by name, checking team-specific first then global."""
+    # Check team-specific skills first
+    team_dir = SKILLS_DIR / team_slug
+    if team_dir.exists():
+        for f in team_dir.glob("*.md"):
             try:
-                skill = load_skill(str(skill_path))
-                engine = _get_engine()
+                skill = SkillParser.parse_file(f)
+                if skill.name == skill_name:
+                    return f
+            except Exception:
+                continue
 
-                if not engine.llm_provider.check_health():
-                    await websocket.send_json({"type": "error", "message": "LLM provider is not running"})
-                    continue
+    # Check global skills
+    if SKILLS_DIR.exists():
+        for f in SKILLS_DIR.glob("*.md"):
+            try:
+                skill = SkillParser.parse_file(f)
+                if skill.name == skill_name:
+                    return f
+            except Exception:
+                continue
 
-                await websocket.send_json({"type": "status", "message": "Generating..."})
+    return None
 
-                today = datetime.now()
-                parts = [f"TODAY'S DATE: {today.strftime('%B %d, %Y')}\n\n"]
-                if customer_name:
-                    parts.append(f"Customer/Client: {customer_name}\n\n")
-                parts.append(input_text)
 
-                gen_request = GenerationRequest(input="".join(parts), skill_name=skill.name)
-                prompt = engine.build_prompt(skill, "".join(parts), gen_request.context, None)
+def _build_corpus_retriever(team, session):
+    """Build a corpus retriever that uses the team's vectorstore."""
+    from ..rag import get_vectorstore, _hybrid_retrieve
+    from ..routers.settings import get_setting
 
-                start_time = time.time()
-                full_content = ""
+    embed_provider = team.embed_provider or get_setting(session, "embed_provider") or "ollama"
+    embed_model = team.embed_model or get_setting(session, "embed_model") or "nomic-embed-text"
+    ollama_host = get_setting(session, "ollama_host") or "http://localhost:11434"
+    openai_key = get_setting(session, "openai_api_key")
 
-                try:
-                    for token in engine.llm_provider.stream(
-                        prompt=prompt,
-                        temperature=skill.temperature,
-                        max_tokens=skill.max_tokens,
-                    ):
-                        full_content += token
-                        await websocket.send_json({"type": "token", "token": token})
-                except NotImplementedError:
-                    full_content = engine.llm_provider.generate(
-                        prompt=prompt,
-                        temperature=skill.temperature,
-                        max_tokens=skill.max_tokens,
-                    )
-                    await websocket.send_json({"type": "token", "token": full_content})
+    class TeamCorpusRetriever:
+        def get_context_for_generation(self, query, n_results=5, min_relevance=0.3, business_type=None):
+            vectorstore = get_vectorstore(
+                team_slug=team.slug,
+                embed_provider=embed_provider,
+                embed_model=embed_model,
+                ollama_host=ollama_host,
+                openai_key=openai_key,
+            )
+            docs, score = _hybrid_retrieve(query, vectorstore, team.slug, top_k=n_results)
+            if not docs:
+                return None, []
 
-                generation_time_ms = int((time.time() - start_time) * 1000)
-                doc_id = str(uuid.uuid4())
+            from dataclasses import dataclass
 
-                await websocket.send_json({
-                    "type": "done",
-                    "id": doc_id,
-                    "skill": skill.name,
-                    "generation_time_ms": generation_time_ms,
-                    "model": getattr(engine.llm_provider, "model", "unknown"),
-                })
+            @dataclass
+            class Citation:
+                document_title: str
+                citation_ref: str = ""
 
-            except Exception as e:
-                await websocket.send_json({"type": "error", "message": str(e)})
+            context_parts = ["# CORPUS CONTEXT (from team document library)"]
+            citations = []
+            for i, doc in enumerate(docs, 1):
+                source = Path(doc.metadata.get("source", "unknown")).stem
+                context_parts.append(f"\n## Source [{i}]: {source}")
+                context_parts.append(doc.page_content)
+                citations.append(Citation(document_title=source, citation_ref=f"[{i}]"))
 
-    except WebSocketDisconnect:
-        pass
+            return "\n".join(context_parts), citations
+
+    return TeamCorpusRetriever()

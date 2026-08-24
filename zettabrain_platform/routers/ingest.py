@@ -1,18 +1,14 @@
-"""Document ingestion endpoint — ingest team documents into vector store."""
-
 from __future__ import annotations
 
-import shutil
-import tempfile
-from pathlib import Path
-from typing import Annotated, List, Optional
+from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import SQLModel, select
 
-from ..deps import CurrentUser, SessionDep, get_team_membership
-from ..ingestion.pipeline import ingest_team_docs
-from ..models import AuditLog, SystemRole, Team, TeamMember, TeamRole
+from ..deps import SessionDep, get_team_membership
+from ..models import AuditLog, Team, TeamMember, TeamRole
+from ..rag import ingest_team_docs
+from ..routers.settings import get_setting
 
 router = APIRouter(prefix="/api/ingest", tags=["ingest"])
 
@@ -50,7 +46,8 @@ def trigger_ingest(
     if not Path(folder).exists():
         raise HTTPException(status_code=400, detail=f"Folder not found: {folder}")
 
-    from ..llm.model_resolver import resolve_team_models
+    # Resolve team-level model configuration (with fallback to system defaults)
+    from ..model_resolver import resolve_team_models
     config = resolve_team_models(session, team.id)
 
     try:
@@ -69,13 +66,41 @@ def trigger_ingest(
         )
         if result["errors"]:
             output += f" Errors: {'; '.join(result['errors'][:3])}"
+        success = True
     except Exception as e:
-        if "dimension" in str(e).lower() and "expecting" in str(e).lower():
+        # Handle OpenAI API errors with user-friendly messages
+        if "openai" in str(type(e).__module__):
+            error_msg = str(e)
+            if "429" in error_msg or "insufficient_quota" in error_msg:
+                raise HTTPException(
+                    status_code=400,
+                    detail="❌ OpenAI quota exceeded - Your OpenAI account has insufficient credits. Please add credits at: https://platform.openai.com/settings/organization/billing/overview"
+                )
+            elif "401" in error_msg or "Incorrect API key" in error_msg or "invalid_api_key" in error_msg:
+                raise HTTPException(
+                    status_code=400,
+                    detail="❌ OpenAI API key invalid - Please check your API key in System Config. Get your key at: https://platform.openai.com/api-keys"
+                )
+            elif "rate_limit" in error_msg.lower():
+                raise HTTPException(
+                    status_code=400,
+                    detail="⚠️ OpenAI rate limit exceeded - Please wait a moment and try again."
+                )
+            else:
+                raise HTTPException(status_code=400, detail=f"❌ OpenAI API error: {error_msg[:200]}")
+        # Handle dimension mismatch errors (embedding provider changed)
+        elif "dimension" in str(e).lower() and "expecting" in str(e).lower():
             raise HTTPException(
                 status_code=400,
-                detail="Vector dimension mismatch — clear vector store and re-ingest with the new provider.",
+                detail=(
+                    "❌ Vector dimension mismatch - The embedding provider was changed. "
+                    "Clear Vector Store first, then try ingesting again. "
+                    "Different embedding providers use different vector dimensions (Ollama: 768, OpenAI small: 1536, OpenAI large: 3072)."
+                )
             )
-        raise HTTPException(status_code=400, detail=f"Ingest failed: {str(e)[:200]}")
+        else:
+            # Re-raise with 400 so UI can display the message
+            raise HTTPException(status_code=400, detail=f"❌ Ingest failed: {str(e)[:200]}")
 
     log = AuditLog(
         user_id          = membership.user_id,
@@ -87,80 +112,7 @@ def trigger_ingest(
     session.add(log)
     session.commit()
 
+    if not success:
+        raise HTTPException(status_code=500, detail=f"Ingest failed: {output}")
+
     return {"status": "ok", "output": output, "details": result}
-
-
-ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt", ".md", ".doc"}
-MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB per file
-
-
-@router.post("/upload")
-async def upload_and_ingest(
-    team_id: int = Form(...),
-    files: List[UploadFile] = File(...),
-    current_user: CurrentUser = None,
-    session: SessionDep = None,
-):
-    """Upload files and ingest them into the team's vector store."""
-    team = session.get(Team, team_id)
-    if not team:
-        raise HTTPException(status_code=404, detail="Team not found")
-
-    if current_user.system_role != SystemRole.admin:
-        membership = session.exec(
-            select(TeamMember).where(
-                TeamMember.user_id == current_user.id,
-                TeamMember.team_id == team_id,
-            )
-        ).first()
-        if not membership or membership.team_role not in (TeamRole.manager,):
-            raise HTTPException(status_code=403, detail="Manager role required to ingest")
-
-    for f in files:
-        ext = Path(f.filename).suffix.lower() if f.filename else ""
-        if ext not in ALLOWED_EXTENSIONS:
-            raise HTTPException(
-                status_code=400,
-                detail=f"File type not allowed: {f.filename}. Supported: {', '.join(ALLOWED_EXTENSIONS)}",
-            )
-
-    tmp_dir = tempfile.mkdtemp(prefix="zbp_ingest_")
-    try:
-        for f in files:
-            dest = Path(tmp_dir) / f.filename
-            content = await f.read()
-            if len(content) > MAX_FILE_SIZE:
-                raise HTTPException(status_code=400, detail=f"File too large: {f.filename} (max 50MB)")
-            dest.write_bytes(content)
-
-        from ..llm.model_resolver import resolve_team_models
-
-        config = resolve_team_models(session, team.id)
-        result = ingest_team_docs(
-            team_slug=team.slug,
-            folder=tmp_dir,
-            embed_provider=config["embed_provider"],
-            embed_model=config["embed_model"],
-            ollama_host=config["ollama_host"],
-            openai_key=config["openai_key"],
-        )
-
-        log = AuditLog(
-            user_id=current_user.id,
-            team_id=team_id,
-            action="ingest",
-            query=f"upload: {', '.join(f.filename for f in files)}",
-            response_preview=f"Ingested {result['files_ingested']} file(s)",
-        )
-        session.add(log)
-        session.commit()
-
-        return {
-            "status": "ok",
-            "documents_ingested": result["files_ingested"],
-            "files_skipped": result["files_skipped"],
-            "total_chunks": result["total_chunks"],
-            "errors": result.get("errors", []),
-        }
-    finally:
-        shutil.rmtree(tmp_dir, ignore_errors=True)

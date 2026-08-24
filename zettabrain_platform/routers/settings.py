@@ -1,8 +1,7 @@
-"""Admin settings router — system configuration management."""
-
 from __future__ import annotations
 
 import json
+import logging
 import shutil
 import urllib.error
 import urllib.request
@@ -14,34 +13,31 @@ from sqlmodel import SQLModel, select
 from ..config import CHROMA_DIR
 from ..deps import AdminUser, SessionDep
 from ..models import SystemConfig, Team
-from ..security.encryption import decrypt_value, encrypt_value
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/admin", tags=["admin-settings"])
 
 DEFAULTS: Dict[str, str] = {
+    # Ollama settings
     "ollama_host":          "http://localhost:11434",
-    "llm_model":            "llama-3.1-8b-instant",
+    "llm_model":            "llama3.1:8b",
     "embed_model":          "nomic-embed-text",
-    "llm_provider":         "groq",
-    "embed_provider":       "ollama",
+
+    # Provider selection
+    "llm_provider":         "ollama",  # ollama | openai | claude
+    "embed_provider":       "ollama",  # ollama | openai
+
+    # OpenAI settings
     "openai_api_key":       "",
     "openai_llm_model":     "gpt-4o",
     "openai_embed_model":   "text-embedding-3-small",
+
+    # Claude/Anthropic settings
     "anthropic_api_key":    "",
-    "claude_llm_model":     "claude-sonnet-4-6",
-    # Cloud LLM providers (all OpenAI-compatible — free tiers available)
-    "groq_api_key":         "",
-    "groq_model":           "llama-3.1-8b-instant",
-    "together_api_key":     "",
-    "together_model":       "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
-    "cerebras_api_key":     "",
-    "cerebras_model":       "llama3.1-8b",
-    "openrouter_api_key":   "",
-    "openrouter_model":     "meta-llama/llama-3.1-8b-instruct:free",
-    "fireworks_api_key":    "",
-    "fireworks_model":      "accounts/fireworks/models/llama-v3p1-8b-instruct",
-    "generation_provider":  "groq",
-    "generation_model":     "llama-3.1-8b-instant",
+    "claude_llm_model":     "claude-sonnet-4-6",  # Claude 4.6 Sonnet (latest)
+
+    # LDAP settings
     "ldap_enabled":         "false",
     "ldap_url":             "",
     "ldap_bind_dn":         "",
@@ -53,58 +49,71 @@ DEFAULTS: Dict[str, str] = {
     "ldap_email_attr":      "mail",
 }
 
-SENSITIVE = {
-    "ldap_bind_password", "openai_api_key", "anthropic_api_key",
-    "groq_api_key", "together_api_key", "cerebras_api_key",
-    "openrouter_api_key", "fireworks_api_key",
-}
+SENSITIVE = {"ldap_bind_password", "openai_api_key", "anthropic_api_key"}
+# ldap_group_base was the old generic field; ldap_require_group is the AD replacement.
+# Accept both on write so old saved values aren't silently dropped.
+
+
+def _get_all_settings(session: Any) -> Dict[str, str]:
+    rows = session.exec(select(SystemConfig)).all()
+    db_map = {r.key: r.value for r in rows}
+    merged: Dict[str, str] = {}
+    for k, default_v in DEFAULTS.items():
+        merged[k] = db_map.get(k, default_v)
+    return merged
 
 
 def get_setting(session: Any, key: str) -> str:
     row = session.get(SystemConfig, key)
     if row is not None:
-        if key in SENSITIVE:
-            return decrypt_value(row.value)
         return row.value
     return DEFAULTS.get(key, "")
 
 
 @router.get("/settings")
 def read_settings(_: AdminUser, session: SessionDep) -> Dict[str, str]:
-    rows = session.exec(select(SystemConfig)).all()
-    db_map = {r.key: r.value for r in rows}
-    merged: Dict[str, str] = {}
-    for k, default_v in DEFAULTS.items():
-        merged[k] = db_map.get(k, default_v)
+    settings = _get_all_settings(session)
+    # Mask sensitive values
     for k in SENSITIVE:
-        if merged.get(k):
-            merged[k] = "********"
-    return merged
+        if settings.get(k):
+            settings[k] = "********"
+    return settings
 
 
 @router.put("/settings")
-def update_settings(body: Dict[str, str], _: AdminUser, session: SessionDep) -> Dict[str, str]:
+def update_settings(
+    body: Dict[str, str],
+    _: AdminUser,
+    session: SessionDep,
+) -> Dict[str, str]:
     for key, value in body.items():
         if key not in DEFAULTS:
             continue
+        # Don't overwrite password if masked placeholder sent back
         if key in SENSITIVE and value == "********":
             continue
-        store_value = encrypt_value(value) if key in SENSITIVE and value else value
         row = session.get(SystemConfig, key)
         if row is None:
-            row = SystemConfig(key=key, value=store_value)
+            row = SystemConfig(key=key, value=value)
         else:
-            row.value = store_value
+            row.value = value
         session.add(row)
     session.commit()
-    return read_settings(_, session)
+    result = _get_all_settings(session)
+    for k in SENSITIVE:
+        if result.get(k):
+            result[k] = "********"
+    return result
 
 
 @router.get("/health")
 def health_check(_: AdminUser, session: SessionDep) -> Dict[str, Any]:
     ollama_host = get_setting(session, "ollama_host")
+    llm_model   = get_setting(session, "llm_model")
+    embed_model = get_setting(session, "embed_model")
 
-    ollama_ok = False
+    # Ollama health
+    ollama_ok     = False
     models_list: List[str] = []
     try:
         req = urllib.request.Request(
@@ -113,36 +122,74 @@ def health_check(_: AdminUser, session: SessionDep) -> Dict[str, Any]:
         )
         with urllib.request.urlopen(req, timeout=5) as resp:
             data = json.loads(resp.read().decode())
-            ollama_ok = True
+            ollama_ok   = True
             models_list = [m.get("name", "") for m in data.get("models", [])]
-    except Exception:
+    except (urllib.error.URLError, Exception):
         pass
 
+    # OpenAI health check
     openai_ok = False
+    openai_models: List[str] = []
     openai_key = get_setting(session, "openai_api_key")
     if openai_key:
         try:
             from openai import OpenAI
-            client = OpenAI(api_key=openai_key.strip())
-            client.models.list()
+
+            # Debug: log key format (first chars only for security)
+            key_prefix = openai_key[:10] if len(openai_key) >= 10 else openai_key[:5]
+            logger.info(f"OpenAI health check - key format: {key_prefix}... (length: {len(openai_key)})")
+
+            client = OpenAI(api_key=openai_key.strip())  # Strip whitespace
+            models_response = client.models.list()
             openai_ok = True
-        except Exception:
+            # Get first 10 models, sorted by ID
+            all_models = sorted([m.id for m in models_response.data])
+            openai_models = all_models[:10]
+            logger.info(f"OpenAI health check - API call successful, {len(all_models)} models found")
+        except Exception as e:
+            logger.warning(f"OpenAI health check - API call failed: {type(e).__name__}: {str(e)[:100]}")
             pass
 
+    # Claude health check
     claude_ok = False
     anthropic_key = get_setting(session, "anthropic_api_key")
     if anthropic_key:
         try:
             from anthropic import Anthropic
-            client = Anthropic(api_key=anthropic_key.strip())
-            client.messages.count_tokens(
-                model="claude-sonnet-4-6",
-                messages=[{"role": "user", "content": "test"}]
-            )
-            claude_ok = True
-        except Exception:
-            claude_ok = bool(anthropic_key and len(anthropic_key) > 20 and anthropic_key.startswith("sk-ant-"))
 
+            # Debug: log key format (first chars only for security)
+            key_prefix = anthropic_key[:15] if len(anthropic_key) >= 15 else anthropic_key[:7]
+            logger.info(f"Claude health check - key format: {key_prefix}... (length: {len(anthropic_key)})")
+
+            client = Anthropic(api_key=anthropic_key.strip())  # Strip whitespace
+            # Test with a minimal API call to verify the key works
+            # Using count_tokens which is a cheap operation
+            try:
+                client.messages.count_tokens(
+                    model="claude-sonnet-4-6",  # Claude 4.6 Sonnet (current latest)
+                    messages=[{"role": "user", "content": "test"}]
+                )
+                claude_ok = True
+                logger.info("Claude health check - API call successful")
+            except Exception as e:
+                logger.warning(f"Claude health check - API call failed: {type(e).__name__}: {str(e)[:100]}")
+                # If count_tokens fails, fall back to format validation
+                claude_ok = bool(anthropic_key and len(anthropic_key) > 20 and anthropic_key.startswith("sk-ant-"))
+        except Exception as e:
+            logger.error(f"Claude health check - initialization failed: {type(e).__name__}: {str(e)[:100]}")
+            pass
+
+    # Disk usage
+    disk_path = "/opt/zettabrain-platform"
+    try:
+        usage     = shutil.disk_usage(disk_path)
+        disk_used = usage.used
+        disk_total = usage.total
+    except OSError:
+        disk_used  = 0
+        disk_total = 0
+
+    # Per-team vector doc counts
     teams = session.exec(select(Team)).all()
     team_vector_stats: List[Dict[str, Any]] = []
     for team in teams:
@@ -152,35 +199,39 @@ def health_check(_: AdminUser, session: SessionDep) -> Dict[str, Any]:
             try:
                 import chromadb
                 client = chromadb.PersistentClient(path=str(team_chroma))
-                col = client.get_or_create_collection("zettabrain_docs")
-                count = col.count()
+                col    = client.get_or_create_collection("zettabrain_docs")
+                count  = col.count()
             except Exception:
-                pass
+                count = 0
         team_vector_stats.append({
-            "team_id": team.id,
-            "team_name": team.name,
-            "team_slug": team.slug,
+            "team_id":     team.id,
+            "team_name":   team.name,
+            "team_slug":   team.slug,
+            "docs_folder": team.docs_folder,
             "vector_docs": count,
         })
 
-    cloud_providers_status: Dict[str, Any] = {}
-    for cp in ("groq", "together", "cerebras", "openrouter", "fireworks"):
-        cp_key = get_setting(session, f"{cp}_api_key")
-        cp_ok = False
-        if cp_key:
-            try:
-                from ..llm.providers.openai_compatible import OpenAICompatibleProvider
-                provider = OpenAICompatibleProvider(provider_name=cp, api_key=cp_key)
-                cp_ok = provider.check_health()
-            except Exception:
-                pass
-        cloud_providers_status[cp] = {"ok": cp_ok, "key_set": bool(cp_key)}
-
     return {
-        "ollama": {"ok": ollama_ok, "host": ollama_host, "models": models_list},
-        "openai": {"ok": openai_ok},
-        "claude": {"ok": claude_ok},
-        "cloud_providers": cloud_providers_status,
+        "ollama": {
+            "ok":         ollama_ok,
+            "host":       ollama_host,
+            "llm_model":  llm_model,
+            "embed_model": embed_model,
+            "models":     models_list,
+        },
+        "openai": {
+            "ok":     openai_ok,
+            "models": openai_models,
+        },
+        "claude": {
+            "ok": claude_ok,
+        },
+        "disk": {
+            "used_bytes":  disk_used,
+            "total_bytes": disk_total,
+            "used_gb":     round(disk_used  / (1024 ** 3), 2),
+            "total_gb":    round(disk_total / (1024 ** 3), 2),
+        },
         "teams": team_vector_stats,
     }
 
@@ -209,7 +260,8 @@ def pull_model(body: PullModelRequest, _: AdminUser, session: SessionDep) -> Dic
             timeout=300,
         )
         data = json.loads(resp.read().decode())
-        return {"status": data.get("status", "done"), "model": model}
+        status = data.get("status", "done")
+        return {"status": status, "model": model}
     except urllib.error.URLError as e:
         raise HTTPException(status_code=502, detail=f"Ollama unreachable: {e.reason}")
     except Exception as e:
@@ -237,6 +289,7 @@ def clear_team_vectorstore(team_id: int, _: AdminUser, session: SessionDep) -> N
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to clear vector store: {exc}")
 
+    # Clear hash cache and BM25 index so re-ingesting the same folder works fully
     for fname in ("ingested_files.json", "bm25_index.pkl"):
         stale = team_chroma / fname
         if stale.exists():

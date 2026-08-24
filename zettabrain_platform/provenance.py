@@ -28,7 +28,7 @@ def init_signing_key(data_dir: Path) -> str:
     key_path = data_dir / "server_signing.key"
     if key_path.exists():
         pem = key_path.read_bytes()
-        _private_key = load_pem_private_key(pem, password=None)
+        _private_key = load_pem_private_key(pem, password=None)  # type: ignore[assignment]
     else:
         _private_key = Ed25519PrivateKey.generate()
         pem = _private_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption())
