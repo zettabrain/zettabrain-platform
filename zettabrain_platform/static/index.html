@@ -213,57 +213,125 @@
     <div id="generate-portal" class="hidden" style="padding:24px;overflow-y:auto;height:100%;">
       <div style="max-width:800px;margin:0 auto;">
         <h2 style="margin-bottom:4px;">Document Generation</h2>
-        <p style="color:var(--muted);font-size:0.85rem;margin-bottom:24px;">Generate documents using AI skills grounded in your team's knowledge base.</p>
+        <p style="color:var(--muted);font-size:0.85rem;margin-bottom:16px;">Generate documents using AI skills grounded in your team's knowledge base.</p>
 
-        <div class="field" style="margin-bottom:16px;">
-          <label>Team</label>
-          <select id="gen-team-select" style="width:100%;padding:8px 12px;font-size:0.9rem;" onchange="loadSkillsForTeam()">
-            <option value="">Select a team...</option>
-          </select>
+        <!-- Tab bar -->
+        <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:24px;">
+          <button class="btn btn-ghost" id="gen-tab-generate" onclick="showGenerateTab()" style="border-radius:8px 8px 0 0;border-bottom:2px solid var(--accent);font-weight:600;">Generate</button>
+          <button class="btn btn-ghost" id="gen-tab-manage" onclick="showSkillsManager()" style="border-radius:8px 8px 0 0;display:none;">Manage Skills</button>
         </div>
 
-        <div class="field" style="margin-bottom:16px;">
-          <label>Skill</label>
-          <select id="gen-skill-select" style="width:100%;padding:8px 12px;font-size:0.9rem;" onchange="onSkillSelect()">
-            <option value="">Select a skill...</option>
-          </select>
-          <div id="gen-skill-desc" style="font-size:0.8rem;color:var(--muted);margin-top:4px;"></div>
-        </div>
-
-        <div class="field" style="margin-bottom:16px;">
-          <label>Input / Instructions</label>
-          <textarea id="gen-input" rows="5" placeholder="Describe what you want to generate..." style="width:100%;padding:10px 12px;font-size:0.9rem;resize:vertical;"></textarea>
-        </div>
-
-        <div style="display:flex;gap:12px;margin-bottom:16px;">
-          <div class="field" style="flex:1;">
-            <label>Temperature</label>
-            <input type="number" id="gen-temp" step="0.1" min="0" max="2" placeholder="0.7 (default)" style="width:100%;padding:8px 12px;">
+        <!-- ═══ GENERATE TAB ═══ -->
+        <div id="gen-tab-content-generate">
+          <div class="field" style="margin-bottom:16px;">
+            <label>Team</label>
+            <select id="gen-team-select" style="width:100%;padding:8px 12px;font-size:0.9rem;" onchange="onGenTeamChange()">
+              <option value="">Select a team...</option>
+            </select>
           </div>
-          <div class="field" style="flex:1;">
-            <label>Max Tokens</label>
-            <input type="number" id="gen-max-tokens" min="100" max="16000" placeholder="2000 (default)" style="width:100%;padding:8px 12px;">
+
+          <div class="field" style="margin-bottom:16px;">
+            <label>Skill</label>
+            <select id="gen-skill-select" style="width:100%;padding:8px 12px;font-size:0.9rem;" onchange="onSkillSelect()">
+              <option value="">Select a skill...</option>
+            </select>
+            <div id="gen-skill-desc" style="font-size:0.8rem;color:var(--muted);margin-top:4px;"></div>
           </div>
-        </div>
 
-        <button class="btn btn-primary" id="gen-submit-btn" onclick="submitGeneration()" style="width:100%;padding:12px;font-size:1rem;">
-          Generate Document
-        </button>
-        <div id="gen-status" style="font-size:0.8rem;margin-top:8px;color:var(--muted);"></div>
+          <div class="field" style="margin-bottom:16px;">
+            <label>Input / Instructions</label>
+            <textarea id="gen-input" rows="5" placeholder="Describe what you want to generate..." style="width:100%;padding:10px 12px;font-size:0.9rem;resize:vertical;"></textarea>
+          </div>
 
-        <div id="gen-result" class="hidden" style="margin-top:24px;border:1px solid var(--border);border-radius:10px;padding:20px;background:var(--surface);">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-            <h3 style="margin:0;">Generated Document</h3>
-            <div style="display:flex;gap:8px;">
-              <button class="btn btn-ghost btn-sm" onclick="copyGenResult()">Copy</button>
-              <button class="btn btn-ghost btn-sm" onclick="downloadGenResult()">Download</button>
+          <div style="display:flex;gap:12px;margin-bottom:16px;">
+            <div class="field" style="flex:1;">
+              <label>Temperature</label>
+              <input type="number" id="gen-temp" step="0.1" min="0" max="2" placeholder="0.7 (default)" style="width:100%;padding:8px 12px;">
+            </div>
+            <div class="field" style="flex:1;">
+              <label>Max Tokens</label>
+              <input type="number" id="gen-max-tokens" min="100" max="16000" placeholder="2000 (default)" style="width:100%;padding:8px 12px;">
             </div>
           </div>
-          <div id="gen-result-meta" style="font-size:0.75rem;color:var(--muted);margin-bottom:12px;"></div>
-          <div id="gen-result-content" style="white-space:pre-wrap;font-size:0.9rem;line-height:1.6;"></div>
-          <div id="gen-result-citations" class="hidden" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);">
-            <strong style="font-size:0.8rem;">Sources:</strong>
-            <div id="gen-citations-list" style="font-size:0.8rem;color:var(--muted);margin-top:4px;"></div>
+
+          <button class="btn btn-primary" id="gen-submit-btn" onclick="submitGeneration()" style="width:100%;padding:12px;font-size:1rem;">
+            Generate Document
+          </button>
+          <div id="gen-status" style="font-size:0.8rem;margin-top:8px;color:var(--muted);"></div>
+
+          <div id="gen-result" class="hidden" style="margin-top:24px;border:1px solid var(--border);border-radius:10px;padding:20px;background:var(--surface);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+              <h3 style="margin:0;">Generated Document</h3>
+              <div style="display:flex;gap:8px;">
+                <button class="btn btn-ghost btn-sm" onclick="copyGenResult()">Copy</button>
+                <button class="btn btn-ghost btn-sm" onclick="downloadGenResult()">Download</button>
+              </div>
+            </div>
+            <div id="gen-result-meta" style="font-size:0.75rem;color:var(--muted);margin-bottom:12px;"></div>
+            <div id="gen-result-content" style="white-space:pre-wrap;font-size:0.9rem;line-height:1.6;"></div>
+            <div id="gen-result-citations" class="hidden" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);">
+              <strong style="font-size:0.8rem;">Sources:</strong>
+              <div id="gen-citations-list" style="font-size:0.8rem;color:var(--muted);margin-top:4px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══ MANAGE SKILLS TAB ═══ -->
+        <div id="gen-tab-content-manage" class="hidden">
+          <div class="field" style="margin-bottom:16px;">
+            <label>Team</label>
+            <select id="manage-team-select" style="width:100%;padding:8px 12px;font-size:0.9rem;" onchange="loadSkillsManager()">
+              <option value="">Select a team...</option>
+            </select>
+          </div>
+
+          <!-- Existing skills list -->
+          <div id="skills-list-container" style="margin-bottom:24px;">
+            <h3 style="margin-bottom:12px;font-size:0.95rem;">Team Skills</h3>
+            <div id="skills-list" style="font-size:0.85rem;color:var(--muted);">Select a team to view skills.</div>
+          </div>
+
+          <!-- Create new skill form -->
+          <div style="border:1px solid var(--border);border-radius:10px;padding:20px;background:var(--surface);">
+            <h3 style="margin:0 0 16px 0;font-size:0.95rem;">Create New Skill</h3>
+
+            <div style="display:flex;gap:12px;margin-bottom:12px;">
+              <div class="field" style="flex:2;">
+                <label>Name *</label>
+                <input type="text" id="skill-name" placeholder="e.g. Contract Summary" style="width:100%;padding:8px 12px;">
+              </div>
+              <div class="field" style="flex:1;">
+                <label>Version</label>
+                <input type="text" id="skill-version" value="1.0.0" style="width:100%;padding:8px 12px;">
+              </div>
+            </div>
+
+            <div class="field" style="margin-bottom:12px;">
+              <label>Description *</label>
+              <input type="text" id="skill-description" placeholder="What does this skill do?" style="width:100%;padding:8px 12px;">
+            </div>
+
+            <div style="display:flex;gap:12px;margin-bottom:12px;">
+              <div class="field" style="flex:1;">
+                <label>Tags (comma-separated)</label>
+                <input type="text" id="skill-tags" placeholder="e.g. legal, summary" style="width:100%;padding:8px 12px;">
+              </div>
+              <div class="field" style="display:flex;align-items:flex-end;gap:8px;padding-bottom:2px;">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap;">
+                  <input type="checkbox" id="skill-requires-corpus"> Uses team docs
+                </label>
+              </div>
+            </div>
+
+            <div class="field" style="margin-bottom:16px;">
+              <label>Instructions * <span style="color:var(--muted);font-weight:normal;">(min 50 chars — tells the AI how to perform the task)</span></label>
+              <textarea id="skill-instructions" rows="8" placeholder="You are an AI assistant that generates [document type]. Follow these steps:&#10;&#10;1. Analyze the provided input and any relevant context from the team's documents.&#10;2. Structure the output as...&#10;3. Ensure the tone is professional and concise.&#10;..." style="width:100%;padding:10px 12px;font-size:0.9rem;resize:vertical;font-family:monospace;"></textarea>
+            </div>
+
+            <button class="btn btn-primary" id="skill-submit-btn" onclick="submitNewSkill()" style="width:100%;padding:12px;font-size:1rem;">
+              Create Skill
+            </button>
+            <div id="skill-create-status" style="font-size:0.8rem;margin-top:8px;color:var(--muted);"></div>
           </div>
         </div>
       </div>
@@ -3423,18 +3491,39 @@ document.addEventListener('keydown', e => {
 // ═══════════════════════════════════════════════════════════════════
 
 let _genSkills = [];
+let _genCanManage = false;
 
 function showGeneratePortal() {
   el('chat-portal').classList.add('hidden');
   el('admin-portal')?.classList.add('hidden');
   el('generate-portal').classList.remove('hidden');
   populateGenTeamSelect();
+  populateManageTeamSelect();
+  showGenerateTab();
 }
 
 function showChatPortal() {
   el('generate-portal').classList.add('hidden');
   el('admin-portal')?.classList.add('hidden');
   el('chat-portal').classList.remove('hidden');
+}
+
+function showGenerateTab() {
+  el('gen-tab-content-generate').classList.remove('hidden');
+  el('gen-tab-content-manage').classList.add('hidden');
+  el('gen-tab-generate').style.borderBottom = '2px solid var(--accent)';
+  el('gen-tab-generate').style.fontWeight = '600';
+  el('gen-tab-manage').style.borderBottom = 'none';
+  el('gen-tab-manage').style.fontWeight = 'normal';
+}
+
+function showSkillsManager() {
+  el('gen-tab-content-generate').classList.add('hidden');
+  el('gen-tab-content-manage').classList.remove('hidden');
+  el('gen-tab-manage').style.borderBottom = '2px solid var(--accent)';
+  el('gen-tab-manage').style.fontWeight = '600';
+  el('gen-tab-generate').style.borderBottom = 'none';
+  el('gen-tab-generate').style.fontWeight = 'normal';
 }
 
 function populateGenTeamSelect() {
@@ -3445,6 +3534,44 @@ function populateGenTeamSelect() {
       select.innerHTML += `<option value="${t.id}">${t.name}</option>`;
     });
   }
+}
+
+function populateManageTeamSelect() {
+  const select = el('manage-team-select');
+  select.innerHTML = '<option value="">Select a team...</option>';
+  if (window._teams) {
+    window._teams.forEach(t => {
+      select.innerHTML += `<option value="${t.id}">${t.name}</option>`;
+    });
+  }
+  // Show Manage Skills tab only for admins or managers
+  updateManageTabVisibility();
+}
+
+async function updateManageTabVisibility() {
+  const tab = el('gen-tab-manage');
+  if (S.user.system_role === 'admin') {
+    tab.style.display = '';
+    _genCanManage = true;
+    return;
+  }
+  // Check if user is manager of any team
+  if (window._teams && window._teams.length > 0) {
+    for (const t of window._teams) {
+      const isMgr = await checkManagerRole(t.id);
+      if (isMgr) {
+        tab.style.display = '';
+        _genCanManage = true;
+        return;
+      }
+    }
+  }
+  tab.style.display = 'none';
+  _genCanManage = false;
+}
+
+async function onGenTeamChange() {
+  await loadSkillsForTeam();
 }
 
 async function loadSkillsForTeam() {
@@ -3463,11 +3590,15 @@ async function loadSkillsForTeam() {
     const data = await api('GET', `/api/teams/${teamId}/skills`);
     _genSkills = data.skills || [];
 
-    select.innerHTML = '<option value="">Select a skill...</option>';
-    _genSkills.forEach((s, i) => {
-      const tag = s.team_specific ? ' (team)' : '';
-      select.innerHTML += `<option value="${i}">${s.name}${tag}</option>`;
-    });
+    if (_genSkills.length === 0) {
+      select.innerHTML = '<option value="">No skills available</option>';
+    } else {
+      select.innerHTML = '<option value="">Select a skill...</option>';
+      _genSkills.forEach((s, i) => {
+        const tag = s.team_specific ? ' (team)' : ' (built-in)';
+        select.innerHTML += `<option value="${i}">${s.name}${tag}</option>`;
+      });
+    }
   } catch (e) {
     select.innerHTML = '<option value="">No skills available</option>';
   }
@@ -3481,6 +3612,121 @@ function onSkillSelect() {
   }
   const skill = _genSkills[parseInt(idx)];
   el('gen-skill-desc').textContent = skill ? skill.description : '';
+}
+
+async function loadSkillsManager() {
+  const teamId = el('manage-team-select').value;
+  const container = el('skills-list');
+
+  if (!teamId) {
+    container.innerHTML = '<div style="color:var(--muted);">Select a team to view skills.</div>';
+    return;
+  }
+
+  container.innerHTML = '<div style="color:var(--muted);">Loading...</div>';
+
+  try {
+    const data = await api('GET', `/api/teams/${teamId}/skills`);
+    const skills = data.skills || [];
+
+    if (skills.length === 0) {
+      container.innerHTML = '<div style="color:var(--muted);">No skills yet. Create one below.</div>';
+      return;
+    }
+
+    let html = '<div style="display:flex;flex-direction:column;gap:8px;">';
+    skills.forEach(s => {
+      const isTeam = s.team_specific;
+      const badge = isTeam
+        ? '<span style="font-size:0.7rem;background:var(--accent);color:white;padding:2px 6px;border-radius:4px;">team</span>'
+        : '<span style="font-size:0.7rem;background:var(--muted);color:white;padding:2px 6px;border-radius:4px;">built-in</span>';
+      const deleteBtn = isTeam
+        ? `<button class="btn btn-ghost btn-sm" style="color:var(--error);font-size:0.75rem;" onclick="deleteSkill('${s.name.replace(/'/g, "\\'")}')">Delete</button>`
+        : '';
+      html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);">
+        <div>
+          <div style="font-weight:500;font-size:0.9rem;">${s.name} <span style="color:var(--muted);font-size:0.75rem;">v${s.version}</span> ${badge}</div>
+          <div style="font-size:0.8rem;color:var(--muted);margin-top:2px;">${s.description}</div>
+          ${s.tags && s.tags.length ? '<div style="font-size:0.7rem;margin-top:4px;color:var(--accent);">' + s.tags.join(', ') + '</div>' : ''}
+        </div>
+        <div>${deleteBtn}</div>
+      </div>`;
+    });
+    html += '</div>';
+    container.innerHTML = html;
+  } catch (e) {
+    container.innerHTML = '<div style="color:var(--error);">Failed to load skills.</div>';
+  }
+}
+
+async function submitNewSkill() {
+  const teamId = el('manage-team-select').value;
+  if (!teamId) { showToast('Select a team first', 'error'); return; }
+
+  const name = el('skill-name').value.trim();
+  const version = el('skill-version').value.trim() || '1.0.0';
+  const description = el('skill-description').value.trim();
+  const tags = el('skill-tags').value.trim();
+  const requiresCorpus = el('skill-requires-corpus').checked;
+  const instructions = el('skill-instructions').value.trim();
+
+  if (!name) { showToast('Skill name is required', 'error'); return; }
+  if (!description) { showToast('Description is required', 'error'); return; }
+  if (!instructions || instructions.length < 50) {
+    showToast('Instructions must be at least 50 characters', 'error');
+    return;
+  }
+
+  // Build markdown content with YAML frontmatter
+  let frontmatter = `---\nname: "${name}"\nversion: "${version}"\ndescription: "${description}"\n`;
+  if (requiresCorpus) frontmatter += `requires_corpus: true\n`;
+  if (tags) {
+    const tagList = tags.split(',').map(t => t.trim()).filter(Boolean);
+    frontmatter += `tags: [${tagList.map(t => `"${t}"`).join(', ')}]\n`;
+  }
+  frontmatter += `---\n\n`;
+
+  const content = frontmatter + instructions;
+  const filename = name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.md';
+
+  const btn = el('skill-submit-btn');
+  const status = el('skill-create-status');
+  btn.disabled = true;
+  btn.textContent = 'Creating...';
+  status.textContent = '';
+
+  try {
+    await api('POST', `/api/teams/${teamId}/skills/upload`, { content, filename });
+    showToast(`Skill "${name}" created successfully`);
+    // Clear form
+    el('skill-name').value = '';
+    el('skill-version').value = '1.0.0';
+    el('skill-description').value = '';
+    el('skill-tags').value = '';
+    el('skill-requires-corpus').checked = false;
+    el('skill-instructions').value = '';
+    // Refresh list
+    loadSkillsManager();
+  } catch (e) {
+    showToast(e.message || 'Failed to create skill', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Create Skill';
+  }
+}
+
+async function deleteSkill(skillName) {
+  const teamId = el('manage-team-select').value;
+  if (!teamId) return;
+  if (!confirm(`Delete skill "${skillName}"? This cannot be undone.`)) return;
+
+  try {
+    await api('DELETE', `/api/teams/${teamId}/skills/${encodeURIComponent(skillName)}`);
+    showToast(`Skill "${skillName}" deleted`);
+    loadSkillsManager();
+  } catch (e) {
+    showToast(e.message || 'Failed to delete skill', 'error');
+  }
 }
 
 async function submitGeneration() {
@@ -3521,7 +3767,7 @@ async function submitGeneration() {
 
     if (data.citations && data.citations.length > 0) {
       el('gen-result-citations').classList.remove('hidden');
-      el('gen-citations-list').innerHTML = data.citations.map(c => `<div>• ${c}</div>`).join('');
+      el('gen-citations-list').innerHTML = data.citations.map(c => `<div>${c}</div>`).join('');
     } else {
       el('gen-result-citations').classList.add('hidden');
     }

@@ -30,33 +30,22 @@ class SkillUploadBody(BaseModel):
     filename: str
 
 
+_BUILTIN_SKILLS_DIR = Path(__file__).parent.parent / "skills"
+
+
 @router.get("/{team_id}/skills")
 def list_skills(
     team_id: int,
     current_user: CurrentUser,
     session: SessionDep,
 ):
-    """List available skills for a team."""
+    """List available skills for a team (built-in + global + team-specific)."""
     get_team_membership(team_id, current_user, session)
 
+    seen_names = set()
     skills = []
-    skills_path = SKILLS_DIR
-    if skills_path.exists():
-        for f in sorted(skills_path.glob("*.md")):
-            try:
-                skill = SkillParser.parse_file(f)
-                skills.append({
-                    "name": skill.name,
-                    "version": skill.version,
-                    "description": skill.description,
-                    "business_type": skill.business_type,
-                    "requires_corpus": skill.requires_corpus,
-                    "tags": skill.tags,
-                })
-            except Exception:
-                continue
 
-    # Also check team-specific skills
+    # 1. Team-specific skills (highest priority, marked as team_specific)
     from ..models import Team
     team = session.get(Team, team_id)
     if team:
@@ -65,6 +54,27 @@ def list_skills(
             for f in sorted(team_skills_path.glob("*.md")):
                 try:
                     skill = SkillParser.parse_file(f)
+                    if skill.name not in seen_names:
+                        seen_names.add(skill.name)
+                        skills.append({
+                            "name": skill.name,
+                            "version": skill.version,
+                            "description": skill.description,
+                            "business_type": skill.business_type,
+                            "requires_corpus": skill.requires_corpus,
+                            "tags": skill.tags,
+                            "team_specific": True,
+                        })
+                except Exception:
+                    continue
+
+    # 2. Global skills in data directory
+    if SKILLS_DIR.exists():
+        for f in sorted(SKILLS_DIR.glob("*.md")):
+            try:
+                skill = SkillParser.parse_file(f)
+                if skill.name not in seen_names:
+                    seen_names.add(skill.name)
                     skills.append({
                         "name": skill.name,
                         "version": skill.version,
@@ -72,10 +82,27 @@ def list_skills(
                         "business_type": skill.business_type,
                         "requires_corpus": skill.requires_corpus,
                         "tags": skill.tags,
-                        "team_specific": True,
                     })
-                except Exception:
-                    continue
+            except Exception:
+                continue
+
+    # 3. Built-in skills shipped with the package (fallback)
+    if _BUILTIN_SKILLS_DIR.exists():
+        for f in sorted(_BUILTIN_SKILLS_DIR.glob("*.md")):
+            try:
+                skill = SkillParser.parse_file(f)
+                if skill.name not in seen_names:
+                    seen_names.add(skill.name)
+                    skills.append({
+                        "name": skill.name,
+                        "version": skill.version,
+                        "description": skill.description,
+                        "business_type": skill.business_type,
+                        "requires_corpus": skill.requires_corpus,
+                        "tags": skill.tags,
+                    })
+            except Exception:
+                continue
 
     return {"skills": skills}
 
@@ -183,8 +210,42 @@ def upload_skill(
     }
 
 
+@router.delete("/{team_id}/skills/{skill_name}")
+def delete_skill(
+    team_id: int,
+    skill_name: str,
+    current_user: CurrentUser,
+    session: SessionDep,
+):
+    """Delete a team-specific skill (manager only)."""
+    from ..models import Team, TeamRole
+    membership = get_team_membership(team_id, current_user, session)
+    if membership.team_role != TeamRole.manager:
+        raise HTTPException(status_code=403, detail="Team manager role required")
+
+    team = session.get(Team, team_id)
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found")
+
+    # Only allow deleting team-specific skills (not built-in)
+    team_dir = SKILLS_DIR / team.slug
+    if not team_dir.exists():
+        raise HTTPException(status_code=404, detail="Skill not found")
+
+    for f in team_dir.glob("*.md"):
+        try:
+            skill = SkillParser.parse_file(f)
+            if skill.name == skill_name:
+                f.unlink()
+                return {"message": f"Skill '{skill_name}' deleted"}
+        except Exception:
+            continue
+
+    raise HTTPException(status_code=404, detail="Skill not found or is a built-in skill")
+
+
 def _find_skill_file(skill_name: str, team_slug: str) -> Optional[Path]:
-    """Find a skill file by name, checking team-specific first then global."""
+    """Find a skill file by name, checking team-specific first, then global, then built-in."""
     # Check team-specific skills first
     team_dir = SKILLS_DIR / team_slug
     if team_dir.exists():
@@ -196,9 +257,19 @@ def _find_skill_file(skill_name: str, team_slug: str) -> Optional[Path]:
             except Exception:
                 continue
 
-    # Check global skills
+    # Check global skills in data directory
     if SKILLS_DIR.exists():
         for f in SKILLS_DIR.glob("*.md"):
+            try:
+                skill = SkillParser.parse_file(f)
+                if skill.name == skill_name:
+                    return f
+            except Exception:
+                continue
+
+    # Check built-in skills shipped with package
+    if _BUILTIN_SKILLS_DIR.exists():
+        for f in _BUILTIN_SKILLS_DIR.glob("*.md"):
             try:
                 skill = SkillParser.parse_file(f)
                 if skill.name == skill_name:

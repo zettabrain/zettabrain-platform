@@ -62,7 +62,7 @@ where = ["."]
 include = ["zettabrain_platform*"]
 
 [tool.setuptools.package-data]
-"zettabrain_platform" = ["static/**/*", "scripts/*"]
+"zettabrain_platform" = ["static/**/*", "scripts/*", "skills/*.md"]
 
 [tool.ruff]
 line-length = 100
