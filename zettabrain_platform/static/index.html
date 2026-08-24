@@ -90,6 +90,11 @@
             <option value="ollama">Ollama</option>
             <option value="openai">OpenAI</option>
             <option value="claude">Claude</option>
+            <option value="groq">Groq (Free tier)</option>
+            <option value="together">Together AI</option>
+            <option value="cerebras">Cerebras (Free tier)</option>
+            <option value="openrouter">OpenRouter</option>
+            <option value="fireworks">Fireworks AI</option>
           </select>
         </div>
 
@@ -771,7 +776,59 @@ const MODEL_OPTIONS = {
       { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet (Legacy, $3/$15 per 1M)' },
       { value: 'custom', label: 'Custom / Other...' }
     ],
-    embed: []  // Claude doesn't support embeddings
+    embed: []
+  },
+  groq: {
+    llm: [
+      { value: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Instant (Fast, Free tier)' },
+      { value: 'llama-3.1-70b-versatile', label: 'Llama 3.1 70B Versatile (Best, Free tier)' },
+      { value: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile (Latest)' },
+      { value: 'mixtral-8x7b-32768', label: 'Mixtral 8x7B (32K context, Free tier)' },
+      { value: 'gemma2-9b-it', label: 'Gemma 2 9B (Free tier)' },
+      { value: 'custom', label: 'Custom / Other...' }
+    ],
+    embed: []
+  },
+  together: {
+    llm: [
+      { value: 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo', label: 'Llama 3.1 8B Turbo (Fast, $0.18 per 1M)' },
+      { value: 'meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo', label: 'Llama 3.1 70B Turbo ($0.88 per 1M)' },
+      { value: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', label: 'Llama 3.3 70B Turbo (Latest)' },
+      { value: 'mistralai/Mixtral-8x7B-Instruct-v0.1', label: 'Mixtral 8x7B ($0.60 per 1M)' },
+      { value: 'Qwen/Qwen2.5-72B-Instruct-Turbo', label: 'Qwen 2.5 72B Turbo' },
+      { value: 'custom', label: 'Custom / Other...' }
+    ],
+    embed: []
+  },
+  cerebras: {
+    llm: [
+      { value: 'llama3.1-8b', label: 'Llama 3.1 8B (Ultra-fast, Free tier)' },
+      { value: 'llama3.1-70b', label: 'Llama 3.1 70B (Fast, Free tier)' },
+      { value: 'llama-3.3-70b', label: 'Llama 3.3 70B (Latest)' },
+      { value: 'custom', label: 'Custom / Other...' }
+    ],
+    embed: []
+  },
+  openrouter: {
+    llm: [
+      { value: 'meta-llama/llama-3.1-8b-instruct:free', label: 'Llama 3.1 8B (Free)' },
+      { value: 'meta-llama/llama-3.1-70b-instruct', label: 'Llama 3.1 70B ($0.52 per 1M)' },
+      { value: 'google/gemma-2-9b-it:free', label: 'Gemma 2 9B (Free)' },
+      { value: 'mistralai/mistral-7b-instruct:free', label: 'Mistral 7B (Free)' },
+      { value: 'qwen/qwen-2.5-72b-instruct', label: 'Qwen 2.5 72B' },
+      { value: 'custom', label: 'Custom / Other...' }
+    ],
+    embed: []
+  },
+  fireworks: {
+    llm: [
+      { value: 'accounts/fireworks/models/llama-v3p1-8b-instruct', label: 'Llama 3.1 8B ($0.20 per 1M)' },
+      { value: 'accounts/fireworks/models/llama-v3p1-70b-instruct', label: 'Llama 3.1 70B ($0.90 per 1M)' },
+      { value: 'accounts/fireworks/models/mixtral-8x7b-instruct', label: 'Mixtral 8x7B ($0.50 per 1M)' },
+      { value: 'accounts/fireworks/models/qwen2p5-72b-instruct', label: 'Qwen 2.5 72B' },
+      { value: 'custom', label: 'Custom / Other...' }
+    ],
+    embed: []
   }
 };
 
@@ -1518,6 +1575,8 @@ async function loadSystemConfig() {
     return;
   }
 
+  S._adminSettings = settings;
+
   const installedModels = (health.ollama && health.ollama.models) ? health.ollama.models : [];
   const ollamaOk        = health.ollama && health.ollama.ok;
   const openaiOk        = health.openai && health.openai.ok;
@@ -1526,6 +1585,7 @@ async function loadSystemConfig() {
 
   const llmProvider     = settings.llm_provider || 'ollama';
   const embedProvider   = settings.embed_provider || 'ollama';
+  const skillsLlmProvider = settings.skills_llm_provider || '';
 
   // Store current embed provider for change detection
   S._currentEmbedProvider = embedProvider;
@@ -1549,9 +1609,14 @@ async function loadSystemConfig() {
             <option value="ollama" ${llmProvider==='ollama'?'selected':''}>Ollama (Self-hosted)</option>
             <option value="openai" ${llmProvider==='openai'?'selected':''}>OpenAI (Cloud)</option>
             <option value="claude" ${llmProvider==='claude'?'selected':''}>Claude / Anthropic (Cloud)</option>
+            <option value="groq" ${llmProvider==='groq'?'selected':''}>Groq (Free tier)</option>
+            <option value="together" ${llmProvider==='together'?'selected':''}>Together AI</option>
+            <option value="cerebras" ${llmProvider==='cerebras'?'selected':''}>Cerebras (Free tier)</option>
+            <option value="openrouter" ${llmProvider==='openrouter'?'selected':''}>OpenRouter</option>
+            <option value="fireworks" ${llmProvider==='fireworks'?'selected':''}>Fireworks AI</option>
           </select>
           <small style="font-size:0.75rem;color:var(--muted);display:block;margin-top:4px;">
-            The language model used for generating answers
+            The language model used for RAG chat answers
           </small>
         </div>
         <div class="field">
@@ -1679,6 +1744,101 @@ async function loadSystemConfig() {
       <span id="cfg-claude-test-result" style="font-size:0.82rem;margin-left:8px;"></span>
     </div>
 
+    <!-- Cloud Provider Config Panel (Groq, Together, Cerebras, OpenRouter, Fireworks) -->
+    <div class="form-section" id="cloud-config-panel" style="display:none;">
+      <h3>Cloud Provider Settings</h3>
+      <p style="font-size:0.85rem;color:var(--muted);margin-bottom:14px;">
+        Configure API keys for OpenAI-compatible cloud LLM providers. Most offer free tiers.
+      </p>
+      <div class="form-row">
+        <div class="field">
+          <label>Groq API Key</label>
+          <input type="password" id="cfg-groq-api-key" value="${escHtml(settings.groq_api_key||'')}" placeholder="gsk_...">
+          <small style="font-size:0.75rem;color:var(--muted);display:block;margin-top:4px;">
+            <a href="https://console.groq.com/keys" target="_blank" style="color:var(--accent2);">Get key</a> — Free tier available
+          </small>
+        </div>
+        <div class="field">
+          <label>Together AI API Key</label>
+          <input type="password" id="cfg-together-api-key" value="${escHtml(settings.together_api_key||'')}" placeholder="...">
+          <small style="font-size:0.75rem;color:var(--muted);display:block;margin-top:4px;">
+            <a href="https://api.together.xyz/settings/api-keys" target="_blank" style="color:var(--accent2);">Get key</a>
+          </small>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label>Cerebras API Key</label>
+          <input type="password" id="cfg-cerebras-api-key" value="${escHtml(settings.cerebras_api_key||'')}" placeholder="...">
+          <small style="font-size:0.75rem;color:var(--muted);display:block;margin-top:4px;">
+            <a href="https://cloud.cerebras.ai/" target="_blank" style="color:var(--accent2);">Get key</a> — Free tier available
+          </small>
+        </div>
+        <div class="field">
+          <label>OpenRouter API Key</label>
+          <input type="password" id="cfg-openrouter-api-key" value="${escHtml(settings.openrouter_api_key||'')}" placeholder="sk-or-...">
+          <small style="font-size:0.75rem;color:var(--muted);display:block;margin-top:4px;">
+            <a href="https://openrouter.ai/keys" target="_blank" style="color:var(--accent2);">Get key</a> — Free models available
+          </small>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label>Fireworks AI API Key</label>
+          <input type="password" id="cfg-fireworks-api-key" value="${escHtml(settings.fireworks_api_key||'')}" placeholder="...">
+          <small style="font-size:0.75rem;color:var(--muted);display:block;margin-top:4px;">
+            <a href="https://fireworks.ai/account/api-keys" target="_blank" style="color:var(--accent2);">Get key</a>
+          </small>
+        </div>
+        <div class="field"></div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label>Cloud LLM Model</label>
+          <select id="cfg-cloud-llm-model" onchange="onCloudModelSel()">
+            <!-- Populated by toggleProviderPanels based on selected cloud provider -->
+          </select>
+          <input type="text" id="cfg-cloud-llm-model-custom" style="margin-top:6px;display:none" placeholder="e.g. custom-model-name">
+        </div>
+        <div class="field"></div>
+      </div>
+    </div>
+
+    <!-- Skills / Generation LLM (separate from chat) -->
+    <div class="form-section">
+      <h3>✨ Skills / Generation LLM</h3>
+      <p style="font-size:0.85rem;color:var(--muted);margin-bottom:14px;">
+        Optionally use a different LLM for document generation (skills). If not set, skills use the same LLM as RAG chat above.
+      </p>
+      <div class="form-row">
+        <div class="field">
+          <label>Skills LLM Provider</label>
+          <select id="cfg-skills-llm-provider" onchange="toggleSkillsLlmModel()">
+            <option value="" ${skillsLlmProvider===''?'selected':''}>Same as Chat LLM (default)</option>
+            <option value="ollama" ${skillsLlmProvider==='ollama'?'selected':''}>Ollama</option>
+            <option value="openai" ${skillsLlmProvider==='openai'?'selected':''}>OpenAI</option>
+            <option value="claude" ${skillsLlmProvider==='claude'?'selected':''}>Claude</option>
+            <option value="groq" ${skillsLlmProvider==='groq'?'selected':''}>Groq</option>
+            <option value="together" ${skillsLlmProvider==='together'?'selected':''}>Together AI</option>
+            <option value="cerebras" ${skillsLlmProvider==='cerebras'?'selected':''}>Cerebras</option>
+            <option value="openrouter" ${skillsLlmProvider==='openrouter'?'selected':''}>OpenRouter</option>
+            <option value="fireworks" ${skillsLlmProvider==='fireworks'?'selected':''}>Fireworks AI</option>
+          </select>
+        </div>
+        <div class="field" id="skills-llm-model-field" style="${skillsLlmProvider ? '' : 'display:none'}">
+          <label>Skills LLM Model</label>
+          <select id="cfg-skills-llm-model" onchange="toggleSkillsCustomModel()">
+            <!-- Populated by toggleSkillsLlmModel() -->
+          </select>
+          <input type="text" id="cfg-skills-llm-model-custom" style="margin-top:6px;display:none" placeholder="Custom model name" value="${escHtml(settings.skills_llm_model||'')}">
+        </div>
+      </div>
+      <div class="field" id="skills-api-key-field" style="${skillsLlmProvider ? '' : 'display:none'}">
+        <label>Skills API Key <span style="font-weight:400;color:var(--muted)">(optional — uses the provider key above if blank)</span></label>
+        <input type="password" id="cfg-skills-llm-api-key" value="${escHtml(settings.skills_llm_api_key||'')}" placeholder="Leave blank to use the provider's key from above">
+      </div>
+    </div>
+
     <div class="form-section">
       <h3>Active Directory / LDAP Authentication</h3>
       <div class="toggle-wrap" style="margin-bottom:14px;">
@@ -1756,7 +1916,10 @@ async function loadSystemConfig() {
   setModelSel('cfg-embed-model-sel', 'cfg-embed-model', settings.embed_model || 'nomic-embed-text');
 
   // Show/hide provider panels based on current selection
-  setTimeout(() => toggleProviderPanels(), 0);
+  setTimeout(() => {
+    toggleProviderPanels();
+    toggleSkillsLlmModel();
+  }, 0);
 }
 
 function onModelSel(inputId, selId) {
@@ -1972,9 +2135,30 @@ async function saveSystemConfig() {
     }
   }
 
+  // Resolve cloud model for the selected cloud provider
+  const llmProv = el('cfg-llm-provider').value;
+  const cloudProviders = ['groq', 'together', 'cerebras', 'openrouter', 'fireworks'];
+  let cloudModelKey = '';
+  let cloudModelVal = '';
+  if (cloudProviders.includes(llmProv)) {
+    cloudModelKey = `${llmProv}_llm_model`;
+    const selVal = el('cfg-cloud-llm-model')?.value || '';
+    const customVal = el('cfg-cloud-llm-model-custom')?.value.trim() || '';
+    cloudModelVal = selVal === 'custom' ? customVal : selVal;
+  }
+
+  // Resolve skills LLM model
+  const skillsProv = el('cfg-skills-llm-provider')?.value || '';
+  let skillsModel = '';
+  if (skillsProv) {
+    const skillsSelVal = el('cfg-skills-llm-model')?.value || '';
+    const skillsCustomVal = el('cfg-skills-llm-model-custom')?.value.trim() || '';
+    skillsModel = skillsSelVal === 'custom' ? skillsCustomVal : skillsSelVal;
+  }
+
   const body = {
     // Provider selection
-    llm_provider:        el('cfg-llm-provider').value,
+    llm_provider:        llmProv,
     embed_provider:      newEmbedProvider,
 
     // Ollama settings
@@ -1990,6 +2174,21 @@ async function saveSystemConfig() {
     // Claude settings
     anthropic_api_key:   el('cfg-anthropic-api-key') ? el('cfg-anthropic-api-key').value : '',
     claude_llm_model:    el('cfg-claude-llm-model') ? el('cfg-claude-llm-model').value : '',
+
+    // Cloud provider API keys
+    groq_api_key:        el('cfg-groq-api-key') ? el('cfg-groq-api-key').value : '',
+    together_api_key:    el('cfg-together-api-key') ? el('cfg-together-api-key').value : '',
+    cerebras_api_key:    el('cfg-cerebras-api-key') ? el('cfg-cerebras-api-key').value : '',
+    openrouter_api_key:  el('cfg-openrouter-api-key') ? el('cfg-openrouter-api-key').value : '',
+    fireworks_api_key:   el('cfg-fireworks-api-key') ? el('cfg-fireworks-api-key').value : '',
+
+    // Cloud provider model (for currently selected cloud provider)
+    ...(cloudModelKey ? { [cloudModelKey]: cloudModelVal } : {}),
+
+    // Skills/Generation LLM
+    skills_llm_provider: skillsProv,
+    skills_llm_model:    skillsModel,
+    skills_llm_api_key:  el('cfg-skills-llm-api-key') ? el('cfg-skills-llm-api-key').value : '',
 
     // LDAP settings
     ldap_enabled:        el('cfg-ldap-enabled').checked ? 'true' : 'false',
@@ -2020,15 +2219,73 @@ async function saveSystemConfig() {
 function toggleProviderPanels() {
   const llmProv = el('cfg-llm-provider').value;
   const embedProv = el('cfg-embed-provider').value;
+  const cloudProviders = ['groq', 'together', 'cerebras', 'openrouter', 'fireworks'];
 
   // Show/hide panels based on what's selected
   const showOllama = llmProv === 'ollama' || embedProv === 'ollama';
   const showOpenAI = llmProv === 'openai' || embedProv === 'openai';
   const showClaude = llmProv === 'claude';
+  const showCloud = cloudProviders.includes(llmProv);
 
   el('ollama-config-panel').style.display = showOllama ? '' : 'none';
   el('openai-config-panel').style.display = showOpenAI ? '' : 'none';
   el('claude-config-panel').style.display = showClaude ? '' : 'none';
+  el('cloud-config-panel').style.display = showCloud ? '' : 'none';
+
+  // Populate cloud model dropdown for the selected cloud provider
+  if (showCloud) {
+    const modelSel = el('cfg-cloud-llm-model');
+    const options = MODEL_OPTIONS[llmProv]?.llm || [];
+    const currentModel = S._adminSettings?.[`${llmProv}_llm_model`] || '';
+    modelSel.innerHTML = options.map(opt =>
+      `<option value="${escHtml(opt.value)}" ${opt.value === currentModel ? 'selected' : ''}>${escHtml(opt.label)}</option>`
+    ).join('');
+  }
+}
+
+function onCloudModelSel() {
+  const sel = el('cfg-cloud-llm-model');
+  const custom = el('cfg-cloud-llm-model-custom');
+  if (sel.value === 'custom') {
+    custom.style.display = '';
+  } else {
+    custom.style.display = 'none';
+    custom.value = '';
+  }
+}
+
+function toggleSkillsLlmModel() {
+  const provider = el('cfg-skills-llm-provider').value;
+  const modelField = el('skills-llm-model-field');
+  const apiKeyField = el('skills-api-key-field');
+
+  if (!provider) {
+    modelField.style.display = 'none';
+    apiKeyField.style.display = 'none';
+    return;
+  }
+
+  modelField.style.display = '';
+  apiKeyField.style.display = '';
+
+  // Populate model dropdown based on selected provider
+  const modelSel = el('cfg-skills-llm-model');
+  const options = MODEL_OPTIONS[provider]?.llm || [];
+  const currentModel = S._adminSettings?.skills_llm_model || '';
+  modelSel.innerHTML = options.map(opt =>
+    `<option value="${escHtml(opt.value)}" ${opt.value === currentModel ? 'selected' : ''}>${escHtml(opt.label)}</option>`
+  ).join('');
+}
+
+function toggleSkillsCustomModel() {
+  const sel = el('cfg-skills-llm-model');
+  const custom = el('cfg-skills-llm-model-custom');
+  if (sel.value === 'custom') {
+    custom.style.display = '';
+  } else {
+    custom.style.display = 'none';
+    custom.value = '';
+  }
 }
 
 async function testOpenAIConnection() {
@@ -2688,10 +2945,11 @@ async function openModelRequestFormChat() {
 }
 
 async function openModelRequestForm(teamId, teamName) {
-  const llmProvider = prompt(`LLM Provider (ollama/openai/claude) for team "${teamName}":`);
+  const validLlmProviders = ['ollama', 'openai', 'claude', 'groq', 'together', 'cerebras', 'openrouter', 'fireworks'];
+  const llmProvider = prompt(`LLM Provider (${validLlmProviders.join('/')}) for team "${teamName}":`);
   if (!llmProvider) return;
-  if (!['ollama', 'openai', 'claude'].includes(llmProvider.toLowerCase())) {
-    toast('Invalid LLM provider. Must be ollama, openai, or claude', 'error');
+  if (!validLlmProviders.includes(llmProvider.toLowerCase())) {
+    toast(`Invalid LLM provider. Must be one of: ${validLlmProviders.join(', ')}`, 'error');
     return;
   }
 

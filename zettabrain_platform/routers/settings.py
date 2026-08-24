@@ -25,7 +25,7 @@ DEFAULTS: Dict[str, str] = {
     "embed_model":          "nomic-embed-text",
 
     # Provider selection
-    "llm_provider":         "ollama",  # ollama | openai | claude
+    "llm_provider":         "ollama",  # ollama | openai | claude | groq | together | cerebras | openrouter | fireworks
     "embed_provider":       "ollama",  # ollama | openai
 
     # OpenAI settings
@@ -36,6 +36,25 @@ DEFAULTS: Dict[str, str] = {
     # Claude/Anthropic settings
     "anthropic_api_key":    "",
     "claude_llm_model":     "claude-sonnet-4-6",  # Claude 4.6 Sonnet (latest)
+
+    # Cloud provider API keys
+    "groq_api_key":         "",
+    "together_api_key":     "",
+    "cerebras_api_key":     "",
+    "openrouter_api_key":   "",
+    "fireworks_api_key":    "",
+
+    # Cloud provider model selections
+    "groq_llm_model":       "llama-3.1-8b-instant",
+    "together_llm_model":   "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
+    "cerebras_llm_model":   "llama3.1-8b",
+    "openrouter_llm_model": "meta-llama/llama-3.1-8b-instruct:free",
+    "fireworks_llm_model":  "accounts/fireworks/models/llama-v3p1-8b-instruct",
+
+    # Skills/Generation LLM (separate from chat — defaults to global LLM if empty)
+    "skills_llm_provider":  "",  # empty = use global llm_provider
+    "skills_llm_model":     "",  # empty = use global resolved model
+    "skills_llm_api_key":   "",  # empty = use the key for the chosen provider
 
     # LDAP settings
     "ldap_enabled":         "false",
@@ -49,7 +68,11 @@ DEFAULTS: Dict[str, str] = {
     "ldap_email_attr":      "mail",
 }
 
-SENSITIVE = {"ldap_bind_password", "openai_api_key", "anthropic_api_key"}
+SENSITIVE = {
+    "ldap_bind_password", "openai_api_key", "anthropic_api_key",
+    "groq_api_key", "together_api_key", "cerebras_api_key",
+    "openrouter_api_key", "fireworks_api_key", "skills_llm_api_key",
+}
 # ldap_group_base was the old generic field; ldap_require_group is the AD replacement.
 # Accept both on write so old saved values aren't silently dropped.
 

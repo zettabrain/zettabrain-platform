@@ -18,6 +18,11 @@ DEFAULTS = {
     "embed_provider": os.getenv("ZBP_EMBED_PROVIDER", "ollama"),
     "embed_model": os.getenv("ZBP_EMBED_MODEL", "nomic-embed-text"),
     "ollama_host": os.getenv("OLLAMA_HOST", "http://localhost:11434"),
+    "groq_llm_model": "llama-3.1-8b-instant",
+    "together_llm_model": "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
+    "cerebras_llm_model": "llama3.1-8b",
+    "openrouter_llm_model": "meta-llama/llama-3.1-8b-instruct:free",
+    "fireworks_llm_model": "accounts/fireworks/models/llama-v3p1-8b-instruct",
 }
 
 CLOUD_PROVIDERS = ("groq", "together", "cerebras", "openrouter", "fireworks")
@@ -69,7 +74,9 @@ def resolve_team_models(session: Session, team_id: int) -> Dict[str, str | None]
     elif llm_provider == "openai":
         llm_model = get_setting(session, "openai_llm_model") or "gpt-4o"
     elif llm_provider == "claude":
-        llm_model = get_setting(session, "claude_llm_model") or "claude-sonnet-4.5"
+        llm_model = get_setting(session, "claude_llm_model") or "claude-sonnet-4-6"
+    elif llm_provider in CLOUD_PROVIDERS:
+        llm_model = get_setting(session, f"{llm_provider}_llm_model") or DEFAULTS.get(f"{llm_provider}_llm_model", "llama-3.1-8b-instant")
     else:  # ollama
         llm_model = get_setting(session, "llm_model") or DEFAULTS["llm_model"]
 
@@ -124,7 +131,9 @@ def _resolve_system_defaults(session: Session) -> Dict[str, str | None]:
     if llm_provider == "openai":
         llm_model = get_setting(session, "openai_llm_model") or "gpt-4o"
     elif llm_provider == "claude":
-        llm_model = get_setting(session, "claude_llm_model") or "claude-sonnet-4.5"
+        llm_model = get_setting(session, "claude_llm_model") or "claude-sonnet-4-6"
+    elif llm_provider in CLOUD_PROVIDERS:
+        llm_model = get_setting(session, f"{llm_provider}_llm_model") or DEFAULTS.get(f"{llm_provider}_llm_model", "llama-3.1-8b-instant")
     else:  # ollama
         llm_model = get_setting(session, "llm_model") or DEFAULTS["llm_model"]
 

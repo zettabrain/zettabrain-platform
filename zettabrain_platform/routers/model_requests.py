@@ -51,6 +51,8 @@ def _validate_model_config(
             detail="Must provide at least one model configuration (LLM or embedding)"
         )
 
+    VALID_LLM_PROVIDERS = ("ollama", "openai", "claude", "groq", "together", "cerebras", "openrouter", "fireworks")
+
     # Validate LLM configuration
     if has_llm:
         if llm_provider and not llm_model:
@@ -63,10 +65,10 @@ def _validate_model_config(
                 status_code=400,
                 detail="llm_provider is required when llm_model is set"
             )
-        if llm_provider not in ("ollama", "openai", "claude"):
+        if llm_provider not in VALID_LLM_PROVIDERS:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid llm_provider: {llm_provider}. Must be ollama, openai, or claude"
+                detail=f"Invalid llm_provider: {llm_provider}. Must be one of: {', '.join(VALID_LLM_PROVIDERS)}"
             )
 
     # Validate embedding configuration
@@ -112,6 +114,23 @@ def _validate_provider_credentials(
             raise HTTPException(
                 status_code=400,
                 detail="Anthropic API key not configured. Ask admin to configure it in system settings."
+            )
+
+    CLOUD_KEY_MAP = {
+        "groq": "groq_api_key",
+        "together": "together_api_key",
+        "cerebras": "cerebras_api_key",
+        "openrouter": "openrouter_api_key",
+        "fireworks": "fireworks_api_key",
+    }
+
+    if llm_provider in CLOUD_KEY_MAP:
+        key_name = CLOUD_KEY_MAP[llm_provider]
+        key_val = get_setting(session, key_name)
+        if not key_val or key_val == "":
+            raise HTTPException(
+                status_code=400,
+                detail=f"{llm_provider.title()} API key not configured. Ask admin to configure it in system settings."
             )
 
 

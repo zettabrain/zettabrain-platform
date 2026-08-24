@@ -140,6 +140,9 @@ def get_embeddings(
 
 def create_generation_provider(
     provider_name: Optional[str] = None,
+    model: Optional[str] = None,
+    api_key: Optional[str] = None,
+    base_url: Optional[str] = None,
     **kwargs,
 ) -> LLMProvider:
     """Create a direct LLM provider for document generation (streaming support).
@@ -149,21 +152,44 @@ def create_generation_provider(
       - groq, together, cerebras, openrouter, fireworks: Free cloud APIs (OpenAI-compatible)
       - openai: OpenAI API (paid)
       - claude/anthropic: Anthropic API (paid)
+
+    When called from the generate router, provider_name/model/api_key come from
+    the system config (skills LLM settings or global LLM settings).
     """
     provider_name = provider_name or os.getenv("ZBP_LLM_PROVIDER", os.getenv("LLM_PROVIDER", "groq")).lower()
 
     if provider_name == "ollama":
         from .providers.ollama import OllamaProvider
-        return OllamaProvider(**kwargs)
+        ollama_kwargs = {}
+        if base_url:
+            ollama_kwargs["base_url"] = base_url
+        if model:
+            ollama_kwargs["model"] = model
+        ollama_kwargs.update(kwargs)
+        return OllamaProvider(**ollama_kwargs)
 
     elif provider_name in ("groq", "together", "cerebras", "openrouter", "fireworks", "openai"):
         from .providers.openai_compatible import OpenAICompatibleProvider
-        return OpenAICompatibleProvider(provider_name=provider_name, **kwargs)
+        oai_kwargs = {"provider_name": provider_name}
+        if api_key:
+            oai_kwargs["api_key"] = api_key
+        if model:
+            oai_kwargs["model"] = model
+        if base_url:
+            oai_kwargs["base_url"] = base_url
+        oai_kwargs.update(kwargs)
+        return OpenAICompatibleProvider(**oai_kwargs)
 
     elif provider_name in ("claude", "anthropic"):
         try:
             from .providers.claude_provider import ClaudeProvider
-            return ClaudeProvider(**kwargs)
+            claude_kwargs = {}
+            if api_key:
+                claude_kwargs["api_key"] = api_key
+            if model:
+                claude_kwargs["model"] = model
+            claude_kwargs.update(kwargs)
+            return ClaudeProvider(**claude_kwargs)
         except ImportError:
             raise ValueError("Claude provider requires anthropic package: pip install anthropic")
 

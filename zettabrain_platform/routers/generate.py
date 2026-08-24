@@ -134,7 +134,9 @@ def generate_document(
     if skill.requires_corpus:
         corpus_retriever = _build_corpus_retriever(team, session)
 
-    engine = GenerationEngine(corpus_retriever=corpus_retriever)
+    # Resolve LLM provider for generation (skills LLM > global LLM)
+    llm_provider = _resolve_generation_llm(session)
+    engine = GenerationEngine(llm_provider=llm_provider, corpus_retriever=corpus_retriever)
 
     request = GenerationRequest(
         input=body.input,
@@ -242,6 +244,80 @@ def delete_skill(
             continue
 
     raise HTTPException(status_code=404, detail="Skill not found or is a built-in skill")
+
+
+def _resolve_generation_llm(session):
+    """Resolve the LLM provider for skills/generation.
+
+    Priority: skills-specific LLM settings > global LLM settings.
+    Uses the same API keys stored in system config.
+    """
+    from ..llm.factory import create_generation_provider
+    from .settings import get_setting
+
+    # Check if skills has its own LLM configured
+    skills_provider = get_setting(session, "skills_llm_provider")
+    skills_model = get_setting(session, "skills_llm_model")
+    skills_api_key = get_setting(session, "skills_llm_api_key")
+
+    if skills_provider:
+        provider_name = skills_provider
+        model = skills_model or None
+        api_key = skills_api_key or None
+    else:
+        # Fall back to global LLM settings
+        provider_name = get_setting(session, "llm_provider") or "ollama"
+        model = None
+        api_key = None
+
+    # Resolve the model name from provider-specific settings if not explicit
+    if not model:
+        if provider_name == "ollama":
+            model = get_setting(session, "llm_model") or "llama3.1:8b"
+        elif provider_name == "openai":
+            model = get_setting(session, "openai_llm_model") or "gpt-4o"
+        elif provider_name == "claude":
+            model = get_setting(session, "claude_llm_model") or "claude-sonnet-4-6"
+        elif provider_name == "groq":
+            model = get_setting(session, "groq_llm_model") or "llama-3.1-8b-instant"
+        elif provider_name == "together":
+            model = get_setting(session, "together_llm_model") or "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo"
+        elif provider_name == "cerebras":
+            model = get_setting(session, "cerebras_llm_model") or "llama3.1-8b"
+        elif provider_name == "openrouter":
+            model = get_setting(session, "openrouter_llm_model") or "meta-llama/llama-3.1-8b-instruct:free"
+        elif provider_name == "fireworks":
+            model = get_setting(session, "fireworks_llm_model") or "accounts/fireworks/models/llama-v3p1-8b-instruct"
+
+    # Resolve API key from system config if not explicitly set for skills
+    if not api_key:
+        if provider_name == "openai":
+            api_key = get_setting(session, "openai_api_key")
+        elif provider_name == "claude":
+            api_key = get_setting(session, "anthropic_api_key")
+        elif provider_name == "groq":
+            api_key = get_setting(session, "groq_api_key")
+        elif provider_name == "together":
+            api_key = get_setting(session, "together_api_key")
+        elif provider_name == "cerebras":
+            api_key = get_setting(session, "cerebras_api_key")
+        elif provider_name == "openrouter":
+            api_key = get_setting(session, "openrouter_api_key")
+        elif provider_name == "fireworks":
+            api_key = get_setting(session, "fireworks_api_key")
+
+    # Build kwargs
+    kwargs = {}
+    if provider_name == "ollama":
+        base_url = get_setting(session, "ollama_host") or "http://localhost:11434"
+        kwargs["base_url"] = base_url
+
+    return create_generation_provider(
+        provider_name=provider_name,
+        model=model,
+        api_key=api_key if api_key else None,
+        **kwargs,
+    )
 
 
 def _find_skill_file(skill_name: str, team_slug: str) -> Optional[Path]:
