@@ -58,6 +58,9 @@ class Team(SQLModel, table=True):
     docs_folder:  Optional[str] = None
     created_at:   datetime      = Field(default_factory=datetime.utcnow)
 
+    # Skills/generation toggle
+    skills_enabled: bool = Field(default=True)
+
     # Team-specific model configuration (NULL = use system defaults)
     llm_provider:   Optional[str] = None
     llm_model:      Optional[str] = None
