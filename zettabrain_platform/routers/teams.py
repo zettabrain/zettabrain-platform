@@ -41,12 +41,12 @@ def list_teams(current_user: CurrentUser, session: SessionDep):
 
 @router.post("/", response_model=TeamRead)
 def create_team(body: TeamCreate, _: AdminUser, session: SessionDep):
-    from zettabrain_platform.server import _license_info
+    from .. import state
     slug = _slugify(body.name)
     if session.exec(select(Team).where(Team.slug == slug)).first():
         raise HTTPException(status_code=409, detail="Team slug already exists")
 
-    max_teams = _license_info.get("max_teams")
+    max_teams = state.license_info.get("max_teams")
     if max_teams is not None:
         current_count = session.exec(select(func.count(Team.id))).one()
         if current_count >= max_teams:

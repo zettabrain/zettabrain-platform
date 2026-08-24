@@ -40,7 +40,7 @@ def list_users(_: AdminUser, session: SessionDep):
 
 @router.post("/users", response_model=UserRead)
 def create_user(body: UserCreate, _: AdminUser, session: SessionDep):
-    from zettabrain_platform.server import _license_info
+    from .. import state
     username = body.username.strip()
     email    = body.email.strip()
     password = body.password
@@ -59,7 +59,7 @@ def create_user(body: UserCreate, _: AdminUser, session: SessionDep):
     if session.exec(select(User).where(User.email == email)).first():
         raise HTTPException(status_code=409, detail="Email already in use")
 
-    max_users = _license_info.get("max_users")
+    max_users = state.license_info.get("max_users")
     if max_users is not None:
         current_count = session.exec(select(func.count(User.id))).one()
         if current_count >= max_users:
@@ -237,7 +237,7 @@ def verify_audit_log(log_id: int, _: AdminUser, session: SessionDep):
 
 @router.get("/stats")
 def get_stats(_: AdminUser, session: SessionDep):
-    from zettabrain_platform.server import _license_info
+    from .. import state
     total_users  = session.exec(select(func.count(User.id))).one()
     total_teams  = session.exec(select(func.count(Team.id))).one()
     total_chats  = session.exec(
@@ -251,26 +251,26 @@ def get_stats(_: AdminUser, session: SessionDep):
         "teams":            total_teams,
         "total_queries":    total_chats,
         "avg_confidence":   round(avg_conf or 0.0, 3),
-        "license_state":    _license_info.get("state"),
-        "licensed":         _license_info.get("licensed", False),
-        "plan":             _license_info.get("plan", "trial"),
-        "days_left":        _license_info.get("days_left"),
-        "expires_at":       _license_info.get("expires_at"),
-        "max_users":        _license_info.get("max_users"),
-        "max_teams":        _license_info.get("max_teams"),
-        "customer":         _license_info.get("customer"),
+        "license_state":    state.license_info.get("state"),
+        "licensed":         state.license_info.get("licensed", False),
+        "plan":             state.license_info.get("plan", "trial"),
+        "days_left":        state.license_info.get("days_left"),
+        "expires_at":       state.license_info.get("expires_at"),
+        "max_users":        state.license_info.get("max_users"),
+        "max_teams":        state.license_info.get("max_teams"),
+        "customer":         state.license_info.get("customer"),
     }
 
 
 @router.get("/license")
 def get_license(_: AdminUser):
-    from zettabrain_platform.server import _license_info
-    return _license_info
+    from .. import state
+    return state.license_info
 
 
 @router.post("/license")
 def upload_license(body: dict, _: AdminUser, session: SessionDep):
-    import zettabrain_platform.server as _srv
+    from .. import state
     key_str = (body.get("key") or "").strip()
     if not key_str:
         raise HTTPException(status_code=400, detail="License key is required")
@@ -290,8 +290,8 @@ def upload_license(body: dict, _: AdminUser, session: SessionDep):
 
     from ..config import DATA_DIR
     from ..license import check_startup
-    _srv._license_info = check_startup(DATA_DIR, session)
-    return _srv._license_info
+    state.license_info = check_startup(DATA_DIR, session)
+    return state.license_info
 
 
 # -------------------------------------------------------

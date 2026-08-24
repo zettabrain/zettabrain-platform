@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from . import state
 from .config import CHROMA_DIR, DATA_DIR
 from .database import init_db
 from .provenance import init_signing_key
@@ -63,13 +64,8 @@ def status():
     }
 
 
-# Module-level license info — populated at startup, read by routers
-_license_info: dict = {}
-
-
 @app.on_event("startup")
 def on_startup():
-    global _license_info
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     CHROMA_DIR.mkdir(parents=True, exist_ok=True)
     pub_key   = init_signing_key(DATA_DIR)
@@ -84,4 +80,4 @@ def on_startup():
         print("=" * 60 + "\n")
     print(f"  ZettaBrain Verified — server public key: {pub_key[:16]}…")
     from .license import check_startup
-    _license_info = check_startup(DATA_DIR)
+    state.license_info = check_startup(DATA_DIR)
