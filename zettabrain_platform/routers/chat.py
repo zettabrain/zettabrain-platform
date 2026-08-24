@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 from sqlmodel import select
 
 from ..deps import CurrentUser, SessionDep
-from ..models import AuditLog, ChatRequest, ChatResponse, SystemRole, Team, TeamMember
+from ..models import AuditLog, ChatHistory, ChatRequest, ChatResponse, SystemRole, Team, TeamMember
 from ..provenance import sign_bundle
 from ..rag import query_team
 from ..routers.settings import get_setting
@@ -161,6 +161,18 @@ def chat(
         provenance_sig   = prov_sig or None,
     )
     session.add(log)
+
+    chat_record = ChatHistory(
+        user_id=current_user.id,
+        team_id=body.team_id,
+        question=body.question,
+        answer=result["answer"],
+        confidence=result["confidence"],
+        chunks_used=result["chunks"],
+        sources=json.dumps(result["sources"]) if result.get("sources") else None,
+        duration_ms=result["duration_ms"],
+    )
+    session.add(chat_record)
     session.commit()
 
     answer = result["answer"]
@@ -177,3 +189,84 @@ def chat(
         duration_ms = result["duration_ms"],
         sources     = result["sources"],
     )
+
+
+@router.get("/history/{team_id}")
+def list_chat_history(
+    team_id: int,
+    current_user: CurrentUser,
+    session: SessionDep,
+    limit: int = 50,
+):
+    """List chat history for a team (current user's messages)."""
+    team = session.get(Team, team_id)
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found")
+
+    if current_user.system_role != SystemRole.admin:
+        membership = session.exec(
+            select(TeamMember).where(
+                TeamMember.user_id == current_user.id,
+                TeamMember.team_id == team_id,
+            )
+        ).first()
+        if not membership:
+            raise HTTPException(status_code=403, detail="Not a team member")
+
+    rows = session.exec(
+        select(ChatHistory)
+        .where(ChatHistory.team_id == team_id, ChatHistory.user_id == current_user.id)
+        .order_by(ChatHistory.created_at.desc())
+        .limit(limit)
+    ).all()
+
+    return [
+        {
+            "id": r.id,
+            "question": r.question,
+            "answer": r.answer[:300],
+            "confidence": r.confidence,
+            "chunks_used": r.chunks_used,
+            "duration_ms": r.duration_ms,
+            "created_at": r.created_at.isoformat(),
+        }
+        for r in rows
+    ]
+
+
+@router.get("/history/{team_id}/{history_id}")
+def get_chat_detail(
+    team_id: int,
+    history_id: int,
+    current_user: CurrentUser,
+    session: SessionDep,
+):
+    """Get full details of a chat history record."""
+    team = session.get(Team, team_id)
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found")
+
+    if current_user.system_role != SystemRole.admin:
+        membership = session.exec(
+            select(TeamMember).where(
+                TeamMember.user_id == current_user.id,
+                TeamMember.team_id == team_id,
+            )
+        ).first()
+        if not membership:
+            raise HTTPException(status_code=403, detail="Not a team member")
+
+    record = session.get(ChatHistory, history_id)
+    if not record or record.team_id != team_id:
+        raise HTTPException(status_code=404, detail="Record not found")
+
+    return {
+        "id": record.id,
+        "question": record.question,
+        "answer": record.answer,
+        "confidence": record.confidence,
+        "chunks_used": record.chunks_used,
+        "sources": json.loads(record.sources) if record.sources else [],
+        "duration_ms": record.duration_ms,
+        "created_at": record.created_at.isoformat(),
+    }

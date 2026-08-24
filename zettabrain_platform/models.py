@@ -146,6 +146,39 @@ class AuditLog(SQLModel, table=True):
 
 
 # -------------------------------------------------------
+# Generation History (skills)
+# -------------------------------------------------------
+class GenerationHistory(SQLModel, table=True):
+    id:               Optional[int]   = Field(default=None, primary_key=True)
+    user_id:          int             = Field(foreign_key="user.id")
+    team_id:          int             = Field(foreign_key="team.id")
+    skill_name:       str
+    skill_version:    Optional[str]   = None
+    input_text:       str
+    output_content:   str
+    citations:        Optional[str]   = None  # JSON array
+    generation_time_ms: Optional[int] = None
+    metadata_json:    Optional[str]   = None  # JSON
+    created_at:       datetime        = Field(default_factory=datetime.utcnow)
+
+
+# -------------------------------------------------------
+# Chat History (RAG)
+# -------------------------------------------------------
+class ChatHistory(SQLModel, table=True):
+    id:               Optional[int]   = Field(default=None, primary_key=True)
+    user_id:          int             = Field(foreign_key="user.id")
+    team_id:          int             = Field(foreign_key="team.id")
+    question:         str
+    answer:           str
+    confidence:       Optional[float] = None
+    chunks_used:      Optional[int]   = None
+    sources:          Optional[str]   = None  # JSON array
+    duration_ms:      Optional[int]   = None
+    created_at:       datetime        = Field(default_factory=datetime.utcnow)
+
+
+# -------------------------------------------------------
 # Pydantic schemas (not table=True)
 # -------------------------------------------------------
 class UserCreate(SQLModel):

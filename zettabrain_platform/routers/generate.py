@@ -1,11 +1,13 @@
 """Document generation router — skill-based AI document generation per team."""
 from __future__ import annotations
 
+import io
 import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from ..config import SKILLS_DIR
@@ -152,8 +154,25 @@ def generate_document(
     if not result.success:
         raise HTTPException(status_code=500, detail=f"Generation failed: {result.error}")
 
+    # Save to generation history
+    from ..models import GenerationHistory
+    history = GenerationHistory(
+        user_id=current_user.id,
+        team_id=team_id,
+        skill_name=result.skill_name,
+        skill_version=result.skill_version,
+        input_text=body.input,
+        output_content=result.content,
+        citations=json.dumps(result.citations) if result.citations else None,
+        generation_time_ms=result.generation_time_ms,
+        metadata_json=json.dumps(result.metadata) if result.metadata else None,
+    )
+    session.add(history)
+    session.commit()
+    session.refresh(history)
+
     return {
-        "id": result.id,
+        "id": history.id,
         "content": result.content,
         "skill_name": result.skill_name,
         "skill_version": result.skill_version,
@@ -244,6 +263,171 @@ def delete_skill(
             continue
 
     raise HTTPException(status_code=404, detail="Skill not found or is a built-in skill")
+
+
+# ── Generation History ────────────────────────────────────────────────────────
+
+@router.get("/{team_id}/generation-history")
+def list_generation_history(
+    team_id: int,
+    current_user: CurrentUser,
+    session: SessionDep,
+    limit: int = 50,
+):
+    """List generation history for a team."""
+    from sqlmodel import select
+    from ..models import GenerationHistory
+
+    get_team_membership(team_id, current_user, session)
+
+    rows = session.exec(
+        select(GenerationHistory)
+        .where(GenerationHistory.team_id == team_id)
+        .order_by(GenerationHistory.created_at.desc())
+        .limit(limit)
+    ).all()
+
+    return [
+        {
+            "id": r.id,
+            "skill_name": r.skill_name,
+            "skill_version": r.skill_version,
+            "input_text": r.input_text[:200],
+            "output_preview": r.output_content[:300],
+            "generation_time_ms": r.generation_time_ms,
+            "created_at": r.created_at.isoformat(),
+        }
+        for r in rows
+    ]
+
+
+@router.get("/{team_id}/generation-history/{history_id}")
+def get_generation_detail(
+    team_id: int,
+    history_id: int,
+    current_user: CurrentUser,
+    session: SessionDep,
+):
+    """Get full details of a generated document."""
+    from ..models import GenerationHistory
+
+    get_team_membership(team_id, current_user, session)
+
+    record = session.get(GenerationHistory, history_id)
+    if not record or record.team_id != team_id:
+        raise HTTPException(status_code=404, detail="Record not found")
+
+    return {
+        "id": record.id,
+        "skill_name": record.skill_name,
+        "skill_version": record.skill_version,
+        "input_text": record.input_text,
+        "content": record.output_content,
+        "citations": json.loads(record.citations) if record.citations else [],
+        "generation_time_ms": record.generation_time_ms,
+        "metadata": json.loads(record.metadata_json) if record.metadata_json else {},
+        "created_at": record.created_at.isoformat(),
+    }
+
+
+@router.get("/{team_id}/generation-history/{history_id}/pdf")
+def download_generation_pdf(
+    team_id: int,
+    history_id: int,
+    current_user: CurrentUser,
+    session: SessionDep,
+):
+    """Download a generated document as PDF."""
+    from ..models import GenerationHistory
+
+    get_team_membership(team_id, current_user, session)
+
+    record = session.get(GenerationHistory, history_id)
+    if not record or record.team_id != team_id:
+        raise HTTPException(status_code=404, detail="Record not found")
+
+    pdf_bytes = _render_pdf(record.skill_name, record.input_text, record.output_content, record.created_at)
+
+    filename = f"zettabrain-{record.skill_name.lower().replace(' ', '-')}-{record.id}.pdf"
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def _render_pdf(skill_name: str, input_text: str, content: str, created_at) -> bytes:
+    """Render generation output as a clean PDF using fpdf2."""
+    from fpdf import FPDF
+
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=20)
+    pdf.add_page()
+
+    # Header
+    pdf.set_font("Helvetica", "B", 18)
+    pdf.cell(0, 12, "ZettaBrain Platform", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "", 10)
+    pdf.set_text_color(107, 114, 128)
+    pdf.cell(0, 6, f"Generated Document - {skill_name}", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 6, f"Date: {created_at.strftime('%Y-%m-%d %H:%M UTC')}", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(4)
+
+    # Divider
+    pdf.set_draw_color(229, 231, 235)
+    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+    pdf.ln(8)
+
+    # Input section
+    pdf.set_text_color(55, 65, 81)
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 8, "Request:", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "", 10)
+    pdf.set_text_color(75, 85, 99)
+    pdf.multi_cell(0, 5, input_text[:500])
+    pdf.ln(6)
+
+    # Content section
+    pdf.set_text_color(17, 24, 39)
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 8, "Generated Content:", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "", 10)
+    pdf.set_text_color(31, 41, 55)
+
+    # Handle content line by line for proper wrapping
+    for line in content.split("\n"):
+        if line.startswith("# "):
+            pdf.set_font("Helvetica", "B", 14)
+            pdf.ln(4)
+            pdf.multi_cell(0, 7, line[2:])
+            pdf.set_font("Helvetica", "", 10)
+        elif line.startswith("## "):
+            pdf.set_font("Helvetica", "B", 12)
+            pdf.ln(3)
+            pdf.multi_cell(0, 6, line[3:])
+            pdf.set_font("Helvetica", "", 10)
+        elif line.startswith("### "):
+            pdf.set_font("Helvetica", "B", 11)
+            pdf.ln(2)
+            pdf.multi_cell(0, 6, line[4:])
+            pdf.set_font("Helvetica", "", 10)
+        elif line.startswith("- ") or line.startswith("* "):
+            pdf.multi_cell(0, 5, f"  • {line[2:]}")
+        elif line.strip() == "":
+            pdf.ln(3)
+        else:
+            pdf.multi_cell(0, 5, line)
+
+    # Footer
+    pdf.ln(10)
+    pdf.set_draw_color(229, 231, 235)
+    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+    pdf.ln(4)
+    pdf.set_font("Helvetica", "I", 8)
+    pdf.set_text_color(156, 163, 175)
+    pdf.cell(0, 5, "Generated by ZettaBrain Platform", new_x="LMARGIN", new_y="NEXT")
+
+    return pdf.output()
 
 
 def _resolve_generation_llm(session):

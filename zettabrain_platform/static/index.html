@@ -13,7 +13,7 @@
   <div class="auth-card">
     <div class="auth-logo">
       <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect width="32" height="32" rx="8" fill="#818cf8"/>
+        <rect width="32" height="32" rx="8" fill="#5b64f4"/>
         <path d="M8 10h16M8 16h10M8 22h13" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
       </svg>
       <span>ZettaBrain Platform</span>
@@ -33,11 +33,11 @@
 </div>
 
 <!-- ═══════════════════════ CHANGE PASSWORD VIEW ═══════════════════ -->
-<div id="change-pw-view" class="hidden" style="align-items:center; justify-content:center; height:100vh; background:var(--bg);">
+<div id="change-pw-view" class="hidden" style="align-items:center; justify-content:center; height:100vh;">
   <div class="auth-card" style="width:400px;">
     <div class="auth-logo">
       <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect width="32" height="32" rx="8" fill="#818cf8"/>
+        <rect width="32" height="32" rx="8" fill="#5b64f4"/>
         <path d="M8 10h16M8 16h10M8 22h13" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
       </svg>
       <span>ZettaBrain Platform</span>
@@ -63,7 +63,7 @@
   <!-- ── LEFT SIDEBAR ── -->
   <div class="sidebar" id="main-sidebar">
     <div class="sidebar-logo">
-      <svg viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="8" fill="#818cf8"/><path d="M8 10h16M8 16h10M8 22h13" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg>
+      <svg viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="8" fill="#5b64f4"/><path d="M8 10h16M8 16h10M8 22h13" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg>
       <span>ZettaBrain</span>
     </div>
 
@@ -71,6 +71,12 @@
     <div id="chat-sidebar" class="sidebar-nav">
       <div class="sidebar-section">Teams</div>
       <div id="team-list-sidebar"></div>
+
+      <div id="chat-history-sidebar" class="chat-history-panel hidden">
+        <div class="sidebar-section">Recent Chats</div>
+        <div id="chat-history-items"></div>
+      </div>
+
       <div class="sidebar-section" style="margin-top:12px;">Mode</div>
       <button class="nav-item" id="go-admin-btn" onclick="window.location.href='/admin'" style="display:none">
         <span>⚙️</span> Admin Panel
@@ -191,6 +197,18 @@
         </select>
         <button id="tib-reingest-btn" class="btn btn-sm btn-warn hidden" onclick="reingestFromChat()" style="margin-left:8px;">⚠️ Re-ingest Docs</button>
         <span class="chunks-count" id="tib-chunks"></span>
+        <button class="btn btn-ghost btn-sm" id="chat-history-btn" onclick="toggleChatHistory()" style="margin-left:8px;">📜 History</button>
+      </div>
+
+      <!-- Chat History Panel (collapsible) -->
+      <div id="chat-history-panel" class="hidden" style="max-height:320px;overflow-y:auto;border-bottom:1px solid var(--border);padding:12px 16px;background:var(--surface);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <h4 style="font-size:0.9rem;font-weight:600;color:var(--text);">Chat History</h4>
+          <button class="btn btn-ghost btn-xs" onclick="toggleChatHistory()">Close</button>
+        </div>
+        <div id="chat-history-list" class="history-list">
+          <div class="history-empty">Loading...</div>
+        </div>
       </div>
 
       <!-- Messages area -->
@@ -215,65 +233,71 @@
     </div>
 
     <!-- GENERATE PORTAL -->
-    <div id="generate-portal" class="hidden" style="padding:24px;overflow-y:auto;height:100%;">
-      <div style="max-width:800px;margin:0 auto;">
-        <h2 style="margin-bottom:4px;">Document Generation</h2>
-        <p style="color:var(--muted);font-size:0.85rem;margin-bottom:16px;">Generate documents using AI skills grounded in your team's knowledge base.</p>
+    <div id="generate-portal" class="hidden gen-portal">
+      <div class="gen-container">
+        <div class="gen-header">
+          <h2>Document Generation</h2>
+          <p>Generate documents using AI skills grounded in your team's knowledge base.</p>
+        </div>
 
         <!-- Tab bar -->
-        <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:24px;">
-          <button class="btn btn-ghost" id="gen-tab-generate" onclick="showGenerateTab()" style="border-radius:8px 8px 0 0;border-bottom:2px solid var(--accent);font-weight:600;">Generate</button>
-          <button class="btn btn-ghost" id="gen-tab-manage" onclick="showSkillsManager()" style="border-radius:8px 8px 0 0;display:none;">Manage Skills</button>
+        <div class="gen-tabs">
+          <button class="gen-tab active" id="gen-tab-generate" onclick="showGenerateTab()">Generate</button>
+          <button class="gen-tab" id="gen-tab-history" onclick="showGenHistory()">History</button>
+          <button class="gen-tab" id="gen-tab-manage" onclick="showSkillsManager()" style="display:none;">Manage Skills</button>
         </div>
 
         <!-- ═══ GENERATE TAB ═══ -->
         <div id="gen-tab-content-generate">
-          <div class="field" style="margin-bottom:16px;">
-            <label>Team</label>
-            <select id="gen-team-select" style="width:100%;padding:8px 12px;font-size:0.9rem;" onchange="onGenTeamChange()">
-              <option value="">Select a team...</option>
-            </select>
-          </div>
-
-          <div class="field" style="margin-bottom:16px;">
-            <label>Skill</label>
-            <select id="gen-skill-select" style="width:100%;padding:8px 12px;font-size:0.9rem;" onchange="onSkillSelect()">
-              <option value="">Select a skill...</option>
-            </select>
-            <div id="gen-skill-desc" style="font-size:0.8rem;color:var(--muted);margin-top:4px;"></div>
-          </div>
-
-          <div class="field" style="margin-bottom:16px;">
-            <label>Input / Instructions</label>
-            <textarea id="gen-input" rows="5" placeholder="Describe what you want to generate..." style="width:100%;padding:10px 12px;font-size:0.9rem;resize:vertical;"></textarea>
-          </div>
-
-          <div style="display:flex;gap:12px;margin-bottom:16px;">
-            <div class="field" style="flex:1;">
-              <label>Temperature</label>
-              <input type="number" id="gen-temp" step="0.1" min="0" max="2" placeholder="0.7 (default)" style="width:100%;padding:8px 12px;">
+          <div class="gen-form-card">
+            <div class="field" style="margin-bottom:16px;">
+              <label>Team</label>
+              <select id="gen-team-select" onchange="onGenTeamChange()">
+                <option value="">Select a team...</option>
+              </select>
             </div>
-            <div class="field" style="flex:1;">
-              <label>Max Tokens</label>
-              <input type="number" id="gen-max-tokens" min="100" max="16000" placeholder="2000 (default)" style="width:100%;padding:8px 12px;">
+
+            <div class="field" style="margin-bottom:16px;">
+              <label>Skill</label>
+              <select id="gen-skill-select" onchange="onSkillSelect()">
+                <option value="">Select a skill...</option>
+              </select>
+              <div id="gen-skill-desc" style="font-size:0.8rem;color:var(--muted);margin-top:4px;"></div>
             </div>
-          </div>
 
-          <button class="btn btn-primary" id="gen-submit-btn" onclick="submitGeneration()" style="width:100%;padding:12px;font-size:1rem;">
-            Generate Document
-          </button>
-          <div id="gen-status" style="font-size:0.8rem;margin-top:8px;color:var(--muted);"></div>
+            <div class="field" style="margin-bottom:16px;">
+              <label>Input / Instructions</label>
+              <textarea id="gen-input" rows="5" placeholder="Describe what you want to generate..."></textarea>
+            </div>
 
-          <div id="gen-result" class="hidden" style="margin-top:24px;border:1px solid var(--border);border-radius:10px;padding:20px;background:var(--surface);">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-              <h3 style="margin:0;">Generated Document</h3>
-              <div style="display:flex;gap:8px;">
-                <button class="btn btn-ghost btn-sm" onclick="copyGenResult()">Copy</button>
-                <button class="btn btn-ghost btn-sm" onclick="downloadGenResult()">Download</button>
+            <div style="display:flex;gap:12px;margin-bottom:16px;">
+              <div class="field" style="flex:1;">
+                <label>Temperature</label>
+                <input type="number" id="gen-temp" step="0.1" min="0" max="2" placeholder="0.7 (default)">
+              </div>
+              <div class="field" style="flex:1;">
+                <label>Max Tokens</label>
+                <input type="number" id="gen-max-tokens" min="100" max="16000" placeholder="2000 (default)">
               </div>
             </div>
-            <div id="gen-result-meta" style="font-size:0.75rem;color:var(--muted);margin-bottom:12px;"></div>
-            <div id="gen-result-content" style="white-space:pre-wrap;font-size:0.9rem;line-height:1.6;"></div>
+
+            <button class="btn btn-primary btn-full" id="gen-submit-btn" onclick="submitGeneration()" style="padding:12px;font-size:1rem;">
+              Generate Document
+            </button>
+            <div id="gen-status" style="font-size:0.8rem;margin-top:8px;color:var(--muted);"></div>
+          </div>
+
+          <!-- Result card (shown after generation) -->
+          <div id="gen-result" class="hidden gen-result-card">
+            <div class="gen-result-header">
+              <h3>Generated Document</h3>
+              <div class="gen-result-actions">
+                <button class="btn btn-ghost btn-sm" onclick="copyGenResult()">📋 Copy</button>
+                <button class="btn btn-primary btn-sm" id="gen-pdf-btn" onclick="downloadGenPdf()">⬇ Download PDF</button>
+              </div>
+            </div>
+            <div id="gen-result-meta" class="gen-result-meta"></div>
+            <div id="gen-result-content" class="gen-result-content"></div>
             <div id="gen-result-citations" class="hidden" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);">
               <strong style="font-size:0.8rem;">Sources:</strong>
               <div id="gen-citations-list" style="font-size:0.8rem;color:var(--muted);margin-top:4px;"></div>
@@ -281,23 +305,38 @@
           </div>
         </div>
 
-        <!-- ═══ MANAGE SKILLS TAB ═══ -->
-        <div id="gen-tab-content-manage" class="hidden">
+        <!-- ═══ HISTORY TAB ═══ -->
+        <div id="gen-tab-content-history" class="hidden">
           <div class="field" style="margin-bottom:16px;">
             <label>Team</label>
-            <select id="manage-team-select" style="width:100%;padding:8px 12px;font-size:0.9rem;" onchange="loadSkillsManager()">
+            <select id="history-team-select" onchange="loadGenHistory()">
               <option value="">Select a team...</option>
             </select>
           </div>
+          <div id="gen-history-list" class="history-list">
+            <div class="history-empty">Select a team to view generation history.</div>
+          </div>
+        </div>
 
-          <!-- Existing skills list -->
-          <div id="skills-list-container" style="margin-bottom:24px;">
-            <h3 style="margin-bottom:12px;font-size:0.95rem;">Team Skills</h3>
-            <div id="skills-list" style="font-size:0.85rem;color:var(--muted);">Select a team to view skills.</div>
+        <!-- ═══ MANAGE SKILLS TAB ═══ -->
+        <div id="gen-tab-content-manage" class="hidden">
+          <div class="gen-form-card">
+            <div class="field" style="margin-bottom:16px;">
+              <label>Team</label>
+              <select id="manage-team-select" onchange="loadSkillsManager()">
+                <option value="">Select a team...</option>
+              </select>
+            </div>
+
+            <!-- Existing skills list -->
+            <div id="skills-list-container" style="margin-bottom:24px;">
+              <h3 style="margin-bottom:12px;font-size:0.95rem;">Team Skills</h3>
+              <div id="skills-list" style="font-size:0.85rem;color:var(--muted);">Select a team to view skills.</div>
+            </div>
           </div>
 
           <!-- Upload skill file -->
-          <div style="border:1px solid var(--border);border-radius:10px;padding:20px;background:var(--surface);margin-bottom:16px;">
+          <div class="gen-form-card">
             <h3 style="margin:0 0 12px 0;font-size:0.95rem;">Upload Skill File</h3>
             <p style="font-size:0.8rem;color:var(--muted);margin-bottom:12px;">Upload an existing <code>.md</code> skill file with YAML frontmatter (name, version, description) and instructions in the body.</p>
             <div style="display:flex;gap:12px;align-items:center;">
@@ -311,7 +350,7 @@
           </div>
 
           <!-- Create new skill form -->
-          <div style="border:1px solid var(--border);border-radius:10px;padding:20px;background:var(--surface);">
+          <div class="gen-form-card">
             <h3 style="margin:0 0 16px 0;font-size:0.95rem;">Create New Skill</h3>
 
             <div style="display:flex;gap:12px;margin-bottom:12px;">
@@ -465,6 +504,7 @@ function toast(msg, type='success') {
   t.classList.remove('hidden');
   setTimeout(() => t.classList.add('hidden'), 3000);
 }
+const showToast = toast;
 
 async function api(method, path, body) {
   const opts = {
@@ -682,6 +722,7 @@ async function selectTeam(teamId) {
   appendSystemMsg(`Switched to team: <strong>${escHtml(S.activeTeam.name)}</strong>. Ask your question below.`);
   await refreshVecCount();
   await loadTeamModels();
+  loadChatHistory(teamId);
 }
 
 function updateTeamInfoBar() {
@@ -1240,6 +1281,7 @@ async function sendChat() {
     const res = await api('POST', '/api/chat/', { question: q, team_id: S.activeTeam.id });
     typing.remove();
     appendMsg('assistant', res.answer, { confidence: res.confidence, chunks: res.chunks, duration_ms: res.duration_ms, sources: res.sources });
+    loadChatHistory(S.activeTeam.id);
   } catch(e) {
     typing.remove();
     appendMsg('assistant', `Error: ${e.message}`);
@@ -3864,12 +3906,16 @@ document.addEventListener('keydown', e => {
 let _genSkills = [];
 let _genCanManage = false;
 
+let _lastGenId = null;
+let _lastGenTeamId = null;
+
 function showGeneratePortal() {
   el('chat-portal').classList.add('hidden');
   el('admin-portal')?.classList.add('hidden');
   el('generate-portal').classList.remove('hidden');
   populateGenTeamSelect();
   populateManageTeamSelect();
+  populateHistoryTeamSelect();
   showGenerateTab();
 }
 
@@ -3879,22 +3925,39 @@ function showChatPortal() {
   el('chat-portal').classList.remove('hidden');
 }
 
-function showGenerateTab() {
-  el('gen-tab-content-generate').classList.remove('hidden');
+function _setActiveGenTab(activeId) {
+  ['gen-tab-generate','gen-tab-history','gen-tab-manage'].forEach(id => {
+    const t = el(id);
+    if (t) t.classList.toggle('active', id === activeId);
+  });
+  el('gen-tab-content-generate').classList.add('hidden');
+  el('gen-tab-content-history').classList.add('hidden');
   el('gen-tab-content-manage').classList.add('hidden');
-  el('gen-tab-generate').style.borderBottom = '2px solid var(--accent)';
-  el('gen-tab-generate').style.fontWeight = '600';
-  el('gen-tab-manage').style.borderBottom = 'none';
-  el('gen-tab-manage').style.fontWeight = 'normal';
+}
+
+function showGenerateTab() {
+  _setActiveGenTab('gen-tab-generate');
+  el('gen-tab-content-generate').classList.remove('hidden');
+}
+
+function showGenHistory() {
+  _setActiveGenTab('gen-tab-history');
+  el('gen-tab-content-history').classList.remove('hidden');
 }
 
 function showSkillsManager() {
-  el('gen-tab-content-generate').classList.add('hidden');
+  _setActiveGenTab('gen-tab-manage');
   el('gen-tab-content-manage').classList.remove('hidden');
-  el('gen-tab-manage').style.borderBottom = '2px solid var(--accent)';
-  el('gen-tab-manage').style.fontWeight = '600';
-  el('gen-tab-generate').style.borderBottom = 'none';
-  el('gen-tab-generate').style.fontWeight = 'normal';
+}
+
+function populateHistoryTeamSelect() {
+  const select = el('history-team-select');
+  select.innerHTML = '<option value="">Select a team...</option>';
+  if (window._teams) {
+    window._teams.forEach(t => {
+      select.innerHTML += `<option value="${t.id}">${t.name}</option>`;
+    });
+  }
 }
 
 function populateGenTeamSelect() {
@@ -4188,13 +4251,19 @@ async function submitGeneration() {
   try {
     const data = await api('POST', `/api/teams/${teamId}/generate`, body);
 
+    _lastGenId = data.id;
+    _lastGenTeamId = teamId;
+
     el('gen-result-content').textContent = data.content;
-    el('gen-result-meta').textContent =
-      `Skill: ${data.skill_name} v${data.skill_version} | Generated in ${data.generation_time_ms}ms`;
+    el('gen-result-meta').innerHTML =
+      `<span>Skill: ${escHtml(data.skill_name)} v${escHtml(data.skill_version||'')}</span>` +
+      `<span>Generated in ${data.generation_time_ms}ms</span>`;
 
     if (data.citations && data.citations.length > 0) {
       el('gen-result-citations').classList.remove('hidden');
-      el('gen-citations-list').innerHTML = data.citations.map(c => `<div>${c}</div>`).join('');
+      el('gen-citations-list').innerHTML = data.citations.map(c =>
+        `<span class="source-chip">${escHtml(typeof c === 'string' ? c : c.document_title || '')}</span>`
+      ).join(' ');
     } else {
       el('gen-result-citations').classList.add('hidden');
     }
@@ -4216,15 +4285,174 @@ function copyGenResult() {
   navigator.clipboard.writeText(content).then(() => showToast('Copied to clipboard'));
 }
 
-function downloadGenResult() {
-  const content = el('gen-result-content').textContent;
-  const blob = new Blob([content], {type: 'text/plain'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'generated-document.txt';
-  a.click();
-  URL.revokeObjectURL(url);
+async function downloadGenPdf() {
+  if (!_lastGenId || !_lastGenTeamId) { showToast('No document to download', 'error'); return; }
+  try {
+    const resp = await fetch(`/api/teams/${_lastGenTeamId}/generation-history/${_lastGenId}/pdf`, {
+      headers: { 'Authorization': `Bearer ${S.token}` }
+    });
+    if (!resp.ok) throw new Error('PDF download failed');
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `zettabrain-document-${_lastGenId}.pdf`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+}
+
+async function loadGenHistory() {
+  const teamId = el('history-team-select').value;
+  const container = el('gen-history-list');
+  if (!teamId) {
+    container.innerHTML = '<div class="history-empty">Select a team to view generation history.</div>';
+    return;
+  }
+  container.innerHTML = '<div class="history-empty">Loading...</div>';
+  try {
+    const data = await api('GET', `/api/teams/${teamId}/generation-history`);
+    if (!data || data.length === 0) {
+      container.innerHTML = '<div class="history-empty">No documents generated yet for this team.</div>';
+      return;
+    }
+    container.innerHTML = data.map(r => `
+      <div class="history-card" onclick="viewGenHistoryItem(${teamId}, ${r.id})">
+        <div class="history-card-header">
+          <span class="history-card-title">${escHtml(r.skill_name)}</span>
+          <span class="history-card-time">${new Date(r.created_at).toLocaleDateString()} ${new Date(r.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</span>
+        </div>
+        <div class="history-card-preview">${escHtml(r.output_preview)}</div>
+        <div class="history-card-meta">
+          <span>${r.generation_time_ms}ms</span>
+          ${r.skill_version ? `<span>v${escHtml(r.skill_version)}</span>` : ''}
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    container.innerHTML = `<div class="history-empty" style="color:var(--danger);">${e.message}</div>`;
+  }
+}
+
+async function viewGenHistoryItem(teamId, historyId) {
+  try {
+    const data = await api('GET', `/api/teams/${teamId}/generation-history/${historyId}`);
+    _lastGenId = data.id;
+    _lastGenTeamId = teamId;
+
+    showGenerateTab();
+    el('gen-result-content').textContent = data.content;
+    el('gen-result-meta').innerHTML =
+      `<span>Skill: ${escHtml(data.skill_name)} v${escHtml(data.skill_version||'')}</span>` +
+      `<span>${new Date(data.created_at).toLocaleString()}</span>` +
+      `<span>${data.generation_time_ms}ms</span>`;
+
+    if (data.citations && data.citations.length > 0) {
+      el('gen-result-citations').classList.remove('hidden');
+      el('gen-citations-list').innerHTML = data.citations.map(c =>
+        `<span class="source-chip">${escHtml(typeof c === 'string' ? c : c.document_title || '')}</span>`
+      ).join(' ');
+    } else {
+      el('gen-result-citations').classList.add('hidden');
+    }
+    el('gen-result').classList.remove('hidden');
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  CHAT HISTORY
+// ═══════════════════════════════════════════════════════════════════
+
+let _chatHistoryVisible = false;
+
+function toggleChatHistory() {
+  _chatHistoryVisible = !_chatHistoryVisible;
+  const panel = el('chat-history-panel');
+  if (_chatHistoryVisible) {
+    panel.classList.remove('hidden');
+    loadChatHistory();
+  } else {
+    panel.classList.add('hidden');
+  }
+}
+
+async function loadChatHistory() {
+  const teamId = S.activeTeam;
+  const container = el('chat-history-list');
+
+  if (!teamId) {
+    container.innerHTML = '<div class="history-empty">Select a team first.</div>';
+    return;
+  }
+
+  container.innerHTML = '<div class="history-empty">Loading...</div>';
+
+  try {
+    const items = await api('GET', `/api/chat/history/${teamId}`);
+
+    if (!items || items.length === 0) {
+      container.innerHTML = '<div class="history-empty">No chat history yet.</div>';
+      return;
+    }
+
+    container.innerHTML = items.map(item => {
+      const date = new Date(item.created_at);
+      const timeStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+      const conf = item.confidence != null ? `${Math.round(item.confidence * 100)}%` : '';
+      return `<div class="history-card" onclick="viewChatHistoryItem(${teamId}, ${item.id})" style="padding:10px 12px;margin-bottom:6px;">
+        <div class="history-card-header">
+          <span class="history-card-title" style="font-size:0.82rem;">${escHtml(item.question.substring(0, 80))}</span>
+          <span class="history-card-time">${timeStr}</span>
+        </div>
+        <div class="history-card-preview" style="font-size:0.78rem;">${escHtml(item.answer)}</div>
+        <div class="history-card-meta">
+          ${conf ? `<span>Confidence: ${conf}</span>` : ''}
+          ${item.chunks_used != null ? `<span>${item.chunks_used} chunks</span>` : ''}
+          ${item.duration_ms ? `<span>${item.duration_ms}ms</span>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    container.innerHTML = '<div class="history-empty" style="color:var(--danger);">Failed to load history.</div>';
+  }
+}
+
+async function viewChatHistoryItem(teamId, historyId) {
+  try {
+    const data = await api('GET', `/api/chat/history/${teamId}/${historyId}`);
+    const msgs = el('messages');
+    msgs.innerHTML = '';
+
+    // Show the question
+    const userDiv = document.createElement('div');
+    userDiv.className = 'msg user';
+    userDiv.innerHTML = `<div class="msg-bubble">${escHtml(data.question)}</div>`;
+    msgs.appendChild(userDiv);
+
+    // Show the answer with metadata
+    const aDiv = document.createElement('div');
+    aDiv.className = 'msg assistant';
+    const confClass = data.confidence >= 0.7 ? 'badge-high' : data.confidence >= 0.4 ? 'badge-medium' : 'badge-low';
+    let metaHtml = '<div class="msg-meta">';
+    if (data.confidence != null) metaHtml += `<span class="badge ${confClass}">${Math.round(data.confidence*100)}% confidence</span>`;
+    if (data.chunks_used != null) metaHtml += `<span class="badge badge-info">${data.chunks_used} chunks</span>`;
+    if (data.duration_ms) metaHtml += `<span class="badge badge-info">${data.duration_ms}ms</span>`;
+    if (data.sources) data.sources.forEach(s => { metaHtml += `<span class="source-chip">${escHtml(s)}</span>`; });
+    metaHtml += '</div>';
+    aDiv.innerHTML = `<div class="msg-bubble">${escHtml(data.answer)}</div>${metaHtml}`;
+    msgs.appendChild(aDiv);
+    msgs.scrollTop = msgs.scrollHeight;
+
+    // Hide history panel
+    _chatHistoryVisible = false;
+    el('chat-history-panel').classList.add('hidden');
+  } catch (e) {
+    showToast('Failed to load chat detail', 'error');
+  }
 }
 </script>
 </body>
