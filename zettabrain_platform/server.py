@@ -28,7 +28,7 @@ logging.basicConfig(
 app = FastAPI(
     title="ZettaBrain Platform",
     description="Unified conversational + generative AI with multi-tenant access control",
-    version="0.2.0",
+    version="0.3.0",
     docs_url=None,
     redoc_url=None,
 )
@@ -98,7 +98,7 @@ def status():
     import os
     return {
         "service": "zettabrain-platform",
-        "version": "0.2.0",
+        "version": "0.3.0",
         "data_dir": str(DATA_DIR),
         "chroma_dir": str(CHROMA_DIR),
         "skills_dir": str(SKILLS_DIR),

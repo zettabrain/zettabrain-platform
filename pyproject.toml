@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zettabrain-platform"
-version = "0.2.0"
+version = "0.3.0"
 description = "Unified AI platform — conversational RAG + generative document skills with multi-tenant access control"
 readme = "README.md"
 requires-python = ">=3.11"
