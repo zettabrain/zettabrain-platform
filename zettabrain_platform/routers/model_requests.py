@@ -299,6 +299,38 @@ def get_team_models(
     )
 
 
+@router.delete("/{team_id}/models", status_code=200)
+def clear_team_model_config(
+    team_id: int,
+    current_user: CurrentUser,
+    session: SessionDep,
+):
+    """
+    Clear team-specific model configuration, reverting to system defaults.
+
+    Requires: Admin role
+    """
+    from ..models import SystemRole
+    if current_user.system_role != SystemRole.admin:
+        raise HTTPException(status_code=403, detail="Admin role required")
+
+    team = session.get(Team, team_id)
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found")
+
+    team.llm_provider = None
+    team.llm_model = None
+    team.embed_provider = None
+    team.embed_model = None
+    session.add(team)
+    session.commit()
+
+    return {
+        "success": True,
+        "message": f"Model config cleared for team '{team.name}'. Now using system defaults.",
+    }
+
+
 @router.post("/{team_id}/model-requests/{request_id}/apply")
 def apply_approved_model_config(
     team_id: int,

@@ -56,9 +56,27 @@ def _is_out_of_scope(answer: str) -> bool:
     lower = answer.lower()
     return any(p in lower for p in _OOS_PHRASES)
 
+import re as _re
+
 from .config import CHROMA_DIR, EMBED_MODEL, LLM_MODEL, OLLAMA_HOST, team_chroma_path
 
 _CONFIDENCE_THRESHOLD = 0.55
+
+
+def _sanitize_model_name(name: str) -> str:
+    return _re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+
+
+def get_collection_name(
+    team_slug: str,
+    embed_provider: str,
+    embed_model: str,
+    multi_embed_enabled: bool,
+) -> str:
+    if not multi_embed_enabled:
+        return "zettabrain_docs"
+    sanitized = _sanitize_model_name(embed_model)
+    return f"zettabrain_docs_{embed_provider}_{sanitized}"
 # Minimum FlashRank logit a chunk must reach to be passed to the LLM.
 # sigmoid(-0.5) ≈ 0.38 — filters clearly off-topic chunks while keeping
 # borderline-relevant ones that may still help the model.
@@ -71,6 +89,8 @@ def get_vectorstore(
     embed_model: str,
     ollama_host: Optional[str] = None,
     openai_key: Optional[str] = None,
+    multi_embed_enabled: bool = False,
+    collection_name: Optional[str] = None,
 ) -> Chroma:
     """Create a vectorstore for a team using the configured embedding provider."""
     from .llm_factory import get_embeddings
@@ -85,10 +105,14 @@ def get_vectorstore(
         openai_key=openai_key,
     )
 
+    col_name = collection_name or get_collection_name(
+        team_slug, embed_provider, embed_model, multi_embed_enabled
+    )
+
     return Chroma(
         persist_directory=path,
         embedding_function=embeddings,
-        collection_name="zettabrain_docs",
+        collection_name=col_name,
     )
 
 
@@ -97,11 +121,13 @@ def get_vectorstore(
 # which causes cross-team document leakage. We maintain one index per team slug
 # at {CHROMA_DIR}/{team_slug}/bm25_index.pkl instead.
 
-def _team_bm25_path(team_slug: str) -> Path:
-    return CHROMA_DIR / team_slug / "bm25_index.pkl"
+def _team_bm25_path(team_slug: str, collection_name: str = "zettabrain_docs") -> Path:
+    if collection_name == "zettabrain_docs":
+        return CHROMA_DIR / team_slug / "bm25_index.pkl"
+    return CHROMA_DIR / team_slug / f"{collection_name}_bm25_index.pkl"
 
 
-def _rebuild_team_bm25(vectorstore, team_slug: str) -> int:
+def _rebuild_team_bm25(vectorstore, team_slug: str, collection_name: str = "zettabrain_docs") -> int:
     try:
         from rank_bm25 import BM25Okapi
     except ImportError:
@@ -113,7 +139,7 @@ def _rebuild_team_bm25(vectorstore, team_slug: str) -> int:
         if not docs:
             return 0
         bm25 = BM25Okapi([d.lower().split() for d in docs])
-        bm25_path = _team_bm25_path(team_slug)
+        bm25_path = _team_bm25_path(team_slug, collection_name)
         bm25_path.parent.mkdir(parents=True, exist_ok=True)
         with open(bm25_path, "wb") as f:
             pickle.dump({"bm25": bm25, "docs": docs, "metadatas": metadatas}, f)
@@ -122,13 +148,13 @@ def _rebuild_team_bm25(vectorstore, team_slug: str) -> int:
         return 0
 
 
-def _bm25_search_team(query: str, team_slug: str, k: int = 8) -> list:
+def _bm25_search_team(query: str, team_slug: str, k: int = 8, collection_name: str = "zettabrain_docs") -> list:
     try:
         from rank_bm25 import BM25Okapi
         from langchain_core.documents import Document
     except ImportError:
         return []
-    bm25_path = _team_bm25_path(team_slug)
+    bm25_path = _team_bm25_path(team_slug, collection_name)
     if not bm25_path.exists():
         return []
     try:
@@ -139,9 +165,6 @@ def _bm25_search_team(query: str, team_slug: str, k: int = 8) -> list:
         max_score = float(scores.max()) if len(scores) else 0.0
         if max_score <= 0:
             return []
-        # Relative threshold: only keep chunks scoring ≥ 20 % of the top
-        # BM25 score. Prevents documents that merely contain one common query
-        # word from polluting the candidate pool.
         min_score = max_score * 0.20
         top = scores.argsort()[-(min(k, len(scores))):][::-1]
         return [
@@ -152,20 +175,10 @@ def _bm25_search_team(query: str, team_slug: str, k: int = 8) -> list:
         return []
 
 
-def _hybrid_retrieve(question: str, vectorstore, team_slug: str, top_k: int = 5) -> tuple:
+def _hybrid_retrieve(question: str, vectorstore, team_slug: str, top_k: int = 5, collection_name: str = "zettabrain_docs") -> tuple:
     """Team-scoped hybrid retrieval: MMR + BM25 + FlashRank re-ranking.
 
     Returns (docs, top_rerank_score_or_None).
-
-    Chunk filtering strategy:
-    - MMR fetch_k reduced to 20 (smaller pool → less noise before reranking)
-    - BM25 uses a relative score threshold (see _bm25_search_team) to drop
-      documents that only match a single common word
-    - After FlashRank re-ranking, chunks below _MIN_RERANK_LOGIT are discarded
-      before being passed to the LLM — this is the primary fix for wrong-source
-      documents appearing in results
-    - Falls back to the top-1 chunk if every candidate is below the threshold
-      (ensures OOS detection still works rather than returning empty context)
     """
     # 1. Semantic MMR — reduced fetch_k to tighten the candidate pool
     semantic = vectorstore.as_retriever(
@@ -174,7 +187,7 @@ def _hybrid_retrieve(question: str, vectorstore, team_slug: str, top_k: int = 5)
     ).invoke(question)
 
     # 2. BM25 keyword search — relative-threshold filtered
-    keyword = _bm25_search_team(question, team_slug, k=8)
+    keyword = _bm25_search_team(question, team_slug, k=8, collection_name=collection_name)
 
     # 3. Merge + deduplicate (semantic first so MMR order is preserved)
     seen, merged = set(), []
@@ -245,9 +258,12 @@ def query_team(
     ollama_host: Optional[str] = None,
     openai_key: Optional[str] = None,
     anthropic_key: Optional[str] = None,
+    multi_embed_enabled: bool = False,
 ) -> dict:
     """Query a team's document library using the configured LLM and embedding providers."""
     from .llm_factory import get_llm
+
+    col_name = get_collection_name(team_slug, embed_provider, embed_model, multi_embed_enabled)
 
     vectorstore = get_vectorstore(
         team_slug=team_slug,
@@ -255,6 +271,7 @@ def query_team(
         embed_model=embed_model,
         ollama_host=ollama_host,
         openai_key=openai_key,
+        multi_embed_enabled=multi_embed_enabled,
     )
 
     # Guard: MMR search crashes when collection has fewer docs than fetch_k
@@ -262,6 +279,23 @@ def query_team(
         doc_count = vectorstore._collection.count()
     except Exception:
         doc_count = 0
+
+    # Multi-embed fallback: if model-specific collection is empty, try legacy
+    if doc_count == 0 and multi_embed_enabled and col_name != "zettabrain_docs":
+        vectorstore = get_vectorstore(
+            team_slug=team_slug,
+            embed_provider=embed_provider,
+            embed_model=embed_model,
+            ollama_host=ollama_host,
+            openai_key=openai_key,
+            collection_name="zettabrain_docs",
+        )
+        try:
+            doc_count = vectorstore._collection.count()
+        except Exception:
+            doc_count = 0
+        if doc_count > 0:
+            col_name = "zettabrain_docs"
 
     if doc_count == 0:
         return {
@@ -274,7 +308,7 @@ def query_team(
         }
 
     t0   = time.time()
-    docs, rerank_score = _hybrid_retrieve(question, vectorstore, team_slug)
+    docs, rerank_score = _hybrid_retrieve(question, vectorstore, team_slug, collection_name=col_name)
 
     llm = get_llm(
         provider=llm_provider,
@@ -342,10 +376,13 @@ def ingest_team_docs(
     embed_model: str,
     ollama_host: Optional[str] = None,
     openai_key: Optional[str] = None,
+    multi_embed_enabled: bool = False,
 ) -> dict:
     """Ingest documents into a team's vectorstore using the configured embedding provider."""
     from langchain_community.document_loaders import PyPDFLoader, TextLoader
     from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+    col_name = get_collection_name(team_slug, embed_provider, embed_model, multi_embed_enabled)
 
     vectorstore = get_vectorstore(
         team_slug=team_slug,
@@ -353,11 +390,13 @@ def ingest_team_docs(
         embed_model=embed_model,
         ollama_host=ollama_host,
         openai_key=openai_key,
+        multi_embed_enabled=multi_embed_enabled,
     )
 
     folder_path     = Path(folder)
     chroma_path     = Path(team_chroma_path(team_slug))
-    hash_cache_path = chroma_path / "ingested_files.json"
+    cache_filename  = f"{col_name}_ingested_files.json" if col_name != "zettabrain_docs" else "ingested_files.json"
+    hash_cache_path = chroma_path / cache_filename
 
     # Load per-team hash cache
     hash_cache: dict = {}
@@ -432,7 +471,7 @@ def ingest_team_docs(
     hash_cache_path.write_text(json.dumps(hash_cache, indent=2))
 
     # Rebuild per-team BM25 keyword index
-    _rebuild_team_bm25(vectorstore, team_slug)
+    _rebuild_team_bm25(vectorstore, team_slug, col_name)
 
     total_chunks = vectorstore._collection.count()
 

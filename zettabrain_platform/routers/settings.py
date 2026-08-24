@@ -189,26 +189,31 @@ def health_check(_: AdminUser, session: SessionDep) -> Dict[str, Any]:
         disk_used  = 0
         disk_total = 0
 
-    # Per-team vector doc counts
+    # Per-team vector doc counts (enumerate all collections for multi-embed)
     teams = session.exec(select(Team)).all()
     team_vector_stats: List[Dict[str, Any]] = []
     for team in teams:
         team_chroma = CHROMA_DIR / team.slug
-        count = 0
+        total_count = 0
+        collections_info: List[Dict[str, Any]] = []
         if team_chroma.exists():
             try:
                 import chromadb
                 client = chromadb.PersistentClient(path=str(team_chroma))
-                col    = client.get_or_create_collection("zettabrain_docs")
-                count  = col.count()
+                for col in client.list_collections():
+                    c = col.count()
+                    collections_info.append({"name": col.name, "count": c})
+                    total_count += c
             except Exception:
-                count = 0
+                pass
         team_vector_stats.append({
             "team_id":     team.id,
             "team_name":   team.name,
             "team_slug":   team.slug,
             "docs_folder": team.docs_folder,
-            "vector_docs": count,
+            "vector_docs": total_count,
+            "collections": collections_info,
+            "multi_embed_enabled": team.multi_embed_enabled,
         })
 
     return {

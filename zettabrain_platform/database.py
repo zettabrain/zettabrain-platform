@@ -29,6 +29,9 @@ def _migrate_db() -> None:
         ("team", "llm_model",      "VARCHAR"),
         ("team", "embed_provider", "VARCHAR"),
         ("team", "embed_model",    "VARCHAR"),
+        # Multi-embedding storage
+        ("team", "multi_embed_allowed", "BOOLEAN DEFAULT 0"),
+        ("team", "multi_embed_enabled", "BOOLEAN DEFAULT 0"),
     ]
     with engine.connect() as conn:
         for table, col, typ in new_cols:

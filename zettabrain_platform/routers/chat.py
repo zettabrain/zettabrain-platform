@@ -54,10 +54,23 @@ def chat(
             ollama_host=config["ollama_host"],
             openai_key=config["openai_key"],
             anthropic_key=config["anthropic_key"],
+            multi_embed_enabled=team.multi_embed_enabled,
         )
     except Exception as e:
+        # Handle Ollama-specific errors
+        error_str = str(e)
+        if "not found, try pulling it" in error_str or ("404" in error_str and "ollama" in error_str.lower()):
+            raise HTTPException(
+                status_code=400,
+                detail="❌ Model not found — the configured Ollama model has not been pulled. Ask your admin to pull it via System Config."
+            )
+        elif "does not support" in error_str.lower() and "embedding" in error_str.lower():
+            raise HTTPException(
+                status_code=400,
+                detail="❌ This model does not support embeddings. Please choose a model designed for embeddings (e.g. nomic-embed-text)."
+            )
         # Handle OpenAI API errors with user-friendly messages
-        if "openai" in str(type(e).__module__):
+        elif "openai" in str(type(e).__module__):
             error_msg = str(e)
             if "429" in error_msg or "insufficient_quota" in error_msg:
                 raise HTTPException(

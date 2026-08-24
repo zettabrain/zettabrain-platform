@@ -8,6 +8,8 @@ from sqlmodel import func, select
 
 from ..deps import AdminUser, CurrentUser, SessionDep, get_team_membership
 from ..models import (
+    AuditLog,
+    ModelRequest,
     SystemRole,
     Team,
     TeamCreate,
@@ -172,10 +174,33 @@ def delete_team(team_id: int, _: AdminUser, session: SessionDep):
     team = session.get(Team, team_id)
     if not team:
         raise HTTPException(status_code=404, detail="Team not found")
-    # Remove all memberships first
+
+    # Cascade: remove memberships
     members = session.exec(select(TeamMember).where(TeamMember.team_id == team_id)).all()
     for m in members:
         session.delete(m)
+
+    # Cascade: remove model requests
+    requests = session.exec(select(ModelRequest).where(ModelRequest.team_id == team_id)).all()
+    for r in requests:
+        session.delete(r)
+
+    # Cascade: null out audit log foreign keys (preserve logs)
+    logs = session.exec(select(AuditLog).where(AuditLog.team_id == team_id)).all()
+    for log in logs:
+        log.team_id = None
+        session.add(log)
+
+    # Cascade: remove chromadb data
+    try:
+        from ..config import CHROMA_DIR
+        import shutil
+        team_chroma = CHROMA_DIR / team.slug
+        if team_chroma.exists():
+            shutil.rmtree(team_chroma)
+    except Exception:
+        pass
+
     session.delete(team)
     session.commit()
 
@@ -204,35 +229,122 @@ def get_team_stats(
     membership: Annotated[TeamMember, Depends(get_team_membership)],
     session: SessionDep,
 ):
-    """
-    Get statistics for a team (vector document count, etc.).
-
-    Accessible to all team members (not just admins).
-    """
     team = session.get(Team, team_id)
     if not team:
         raise HTTPException(status_code=404, detail="Team not found")
 
-    # Get vector document count
     vector_docs = 0
+    collections_info = []
     try:
         from ..config import CHROMA_DIR
+        import chromadb
         team_chroma = CHROMA_DIR / team.slug
         if team_chroma.exists():
-            import chromadb
             client = chromadb.PersistentClient(path=str(team_chroma))
-            try:
-                collection = client.get_collection("zettabrain_docs")
-                vector_docs = collection.count()
-            except Exception:
-                # Collection doesn't exist or other error
-                vector_docs = 0
+            for col in client.list_collections():
+                count = col.count()
+                collections_info.append({"name": col.name, "count": count})
+                vector_docs += count
     except Exception:
-        vector_docs = 0
+        pass
 
     return {
         "team_id": team.id,
         "team_name": team.name,
         "vector_docs": vector_docs,
+        "collections": collections_info,
         "docs_folder": team.docs_folder,
     }
+
+
+@router.patch("/{team_id}/multi-embed-permission")
+def set_multi_embed_permission(
+    team_id: int,
+    _: AdminUser,
+    session: SessionDep,
+    allowed: bool = True,
+):
+    team = session.get(Team, team_id)
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found")
+    team.multi_embed_allowed = allowed
+    if not allowed:
+        team.multi_embed_enabled = False
+    session.add(team)
+    session.commit()
+    session.refresh(team)
+    return {"multi_embed_allowed": team.multi_embed_allowed, "multi_embed_enabled": team.multi_embed_enabled}
+
+
+@router.patch("/{team_id}/multi-embed-settings")
+def toggle_multi_embed(
+    team_id: int,
+    current_user: CurrentUser,
+    session: SessionDep,
+    enabled: bool = True,
+):
+    team = session.get(Team, team_id)
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found")
+
+    if current_user.system_role != SystemRole.admin:
+        membership = session.exec(
+            select(TeamMember).where(
+                TeamMember.user_id == current_user.id,
+                TeamMember.team_id == team_id,
+            )
+        ).first()
+        if not membership or membership.team_role != TeamRole.manager:
+            raise HTTPException(status_code=403, detail="Manager role required")
+
+    if not team.multi_embed_allowed:
+        raise HTTPException(
+            status_code=403,
+            detail="Multi-embedding not allowed for this team. Ask an admin to enable it.",
+        )
+
+    team.multi_embed_enabled = enabled
+    session.add(team)
+    session.commit()
+    session.refresh(team)
+    return {"multi_embed_enabled": team.multi_embed_enabled}
+
+
+@router.delete("/{team_id}/collections/{collection_name}", status_code=204)
+def delete_collection(
+    team_id: int,
+    collection_name: str,
+    current_user: CurrentUser,
+    session: SessionDep,
+):
+    team = session.get(Team, team_id)
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found")
+
+    if current_user.system_role != SystemRole.admin:
+        membership = session.exec(
+            select(TeamMember).where(
+                TeamMember.user_id == current_user.id,
+                TeamMember.team_id == team_id,
+            )
+        ).first()
+        if not membership or membership.team_role != TeamRole.manager:
+            raise HTTPException(status_code=403, detail="Manager role required")
+
+    from ..config import CHROMA_DIR
+    import chromadb
+    team_chroma = CHROMA_DIR / team.slug
+    if not team_chroma.exists():
+        raise HTTPException(status_code=404, detail="No vector store for this team")
+
+    client = chromadb.PersistentClient(path=str(team_chroma))
+    try:
+        client.delete_collection(collection_name)
+    except Exception:
+        raise HTTPException(status_code=404, detail=f"Collection '{collection_name}' not found")
+
+    # Clean up associated BM25 index and hash cache
+    for suffix in (f"_bm25_{collection_name}.pkl", f"_hashes_{collection_name}.json"):
+        stale = team_chroma / suffix
+        if stale.exists():
+            stale.unlink()

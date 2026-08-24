@@ -61,6 +61,10 @@ class Team(SQLModel, table=True):
     # Skills/generation toggle
     skills_enabled: bool = Field(default=True)
 
+    # Multi-embedding storage
+    multi_embed_allowed: bool = Field(default=False)
+    multi_embed_enabled: bool = Field(default=False)
+
     # Team-specific model configuration (NULL = use system defaults)
     llm_provider:   Optional[str] = None
     llm_model:      Optional[str] = None
@@ -172,6 +176,8 @@ class TeamRead(SQLModel):
     description: Optional[str]
     docs_folder: Optional[str]
     created_at:  datetime
+    multi_embed_allowed: bool = False
+    multi_embed_enabled: bool = False
 
 
 class TeamUpdate(SQLModel):
