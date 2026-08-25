@@ -356,9 +356,31 @@ def download_generation_pdf(
     )
 
 
+def _sanitize_for_pdf(text: str) -> str:
+    """Replace non-latin-1 characters with ASCII equivalents for Helvetica."""
+    replacements = {
+        "•": "-",  # bullet
+        "–": "-",  # en-dash
+        "—": "--", # em-dash
+        "‘": "'",  # left single quote
+        "’": "'",  # right single quote
+        "“": '"',  # left double quote
+        "”": '"',  # right double quote
+        "…": "...",  # ellipsis
+        " ": " ",  # non-breaking space
+    }
+    for char, repl in replacements.items():
+        text = text.replace(char, repl)
+    return text.encode("latin-1", errors="replace").decode("latin-1")
+
+
 def _render_pdf(skill_name: str, input_text: str, content: str, created_at) -> bytes:
     """Render generation output as a clean PDF using fpdf2."""
     from fpdf import FPDF
+
+    content = _sanitize_for_pdf(content)
+    input_text = _sanitize_for_pdf(input_text)
+    skill_name = _sanitize_for_pdf(skill_name)
 
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=25)
@@ -419,7 +441,7 @@ def _render_pdf(skill_name: str, input_text: str, content: str, created_at) -> b
             pdf.set_font("Helvetica", "", 10)
         elif line.startswith("- ") or line.startswith("* "):
             pdf.set_x(pdf.l_margin + 5)
-            pdf.multi_cell(w - 5, 5, f"• {line[2:]}")
+            pdf.multi_cell(w - 5, 5, f"- {line[2:]}")
         elif line.strip() == "":
             pdf.ln(3)
         else:
