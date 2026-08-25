@@ -40,9 +40,9 @@ app.include_router(generate_router.router)
 
 _STATIC = Path(__file__).parent / "static"
 
-# Serve the compiled Vite assets (JS/CSS chunks live under /assets/)
-if (_STATIC / "assets").exists():
-    app.mount("/assets", StaticFiles(directory=str(_STATIC / "assets")), name="assets")
+# Serve static files (CSS, JS, images) at /static/...
+if _STATIC.exists():
+    app.mount("/static", StaticFiles(directory=str(_STATIC)), name="static")
 
 
 @app.get("/", include_in_schema=False)
@@ -50,14 +50,9 @@ def index():
     return FileResponse(str(_STATIC / "index.html"))
 
 
-# Catch-all: serve index.html for every non-API path so React Router works
-@app.get("/{full_path:path}", include_in_schema=False)
-def spa_fallback(full_path: str):
-    # Let the API and actual static files pass through; only catch UI routes
-    index_file = _STATIC / "index.html"
-    if index_file.exists():
-        return FileResponse(str(index_file))
-    return {"error": "UI not built"}
+@app.get("/admin", include_in_schema=False)
+def admin_portal():
+    return FileResponse(str(_STATIC / "index.html"))
 
 
 @app.get("/api/status")
