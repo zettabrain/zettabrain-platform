@@ -821,11 +821,13 @@ const MODEL_OPTIONS = {
   },
   groq: {
     llm: [
-      { value: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Instant (Fast, Free tier)' },
-      { value: 'llama-3.1-70b-versatile', label: 'Llama 3.1 70B Versatile (Best, Free tier)' },
-      { value: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile (Latest)' },
-      { value: 'mixtral-8x7b-32768', label: 'Mixtral 8x7B (32K context, Free tier)' },
-      { value: 'gemma2-9b-it', label: 'Gemma 2 9B (Free tier)' },
+      { value: 'openai/gpt-oss-20b', label: 'GPT OSS 20B (1000 t/s, $0.075/1M — Recommended)' },
+      { value: 'openai/gpt-oss-120b', label: 'GPT OSS 120B (500 t/s, $0.15/1M — Best quality)' },
+      { value: 'qwen/qwen3.6-27b', label: 'Qwen 3.6 27B (500 t/s, $0.60/1M)' },
+      { value: 'groq/compound', label: 'Groq Compound (web search + tools)' },
+      { value: 'groq/compound-mini', label: 'Groq Compound Mini (fast, web search)' },
+      { value: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Instant (Enterprise only)' },
+      { value: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile (Enterprise only)' },
       { value: 'custom', label: 'Custom / Other...' }
     ],
     embed: []
